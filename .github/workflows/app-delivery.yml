@@ -48,7 +48,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-test
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ steps.meta.outputs.bake-file-created }}
+            BUILT_AT=${{ github.event.repository.updated_at }}
 
       - name: Run Trivy vulnerability scanner (DEV-03)
         uses: aquasecurity/trivy-action@0.28.0
@@ -78,4 +78,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ steps.meta.outputs.bake-file-created }}
+            BUILT_AT=${{ github.event.repository.updated_at }}
