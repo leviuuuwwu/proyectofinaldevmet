@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env*
+!.env.example
+*.tfstate*
+.terraform/
+*.tfvars
+!*.tfvars.example
+kubeconfig*
+*.pem
+*.key
