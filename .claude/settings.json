@@ -1,0 +1,25 @@
+{
+	"permissions": {
+		"deny": [
+			"Read(./.env)",
+			"Read(./.env.*)",
+			"Read(./**/*.tfstate)",
+			"Read(./**/kubeconfig*)",
+			"Read(./**/*.pem)",
+			"Read(./**/*.key)",
+			"Bash(curl:*)",
+			"Bash(wget:*)",
+			"Bash(npm publish:*)",
+			"Bash(git push --force:*)",
+			"Bash(terraform apply:*)",
+			"Bash(terraform destroy:*)"
+		],
+		"ask": [
+			"Bash(npm install:*)",
+			"Bash(npm i:*)",
+			"Bash(npx:*)",
+			"Bash(kubectl delete:*)",
+			"Bash(git push:*)"
+		]
+	}
+}
