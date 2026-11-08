@@ -1,0 +1,64 @@
+name: Continuous Deployment
+
+on:
+  workflow_run:
+    workflows: ["App Delivery CI/CD"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: development
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Run Database Migrations Job (DEV-05)
+        run: |
+          kubectl apply -n search-dev -f deploy/base/migration-job.yaml
+          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-dev || true
+
+      - name: Deploy application with Kustomize (DEV-10)
+        run: |
+          cd deploy/overlays/dev
+          kustomize edit set image ghcr.io/leviuuuwwu/proyectofinaldevmet=ghcr.io/${{ github.repository }}:${{ github.sha }} || true
+          kubectl apply -k .
+          kubectl rollout status deployment/search-api -n search-dev --timeout=120s
+          kubectl rollout status deployment/search-indexer -n search-dev --timeout=120s
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Run Database Migrations Job (DEV-05)
+        run: |
+          kubectl apply -n search-prod -f deploy/base/migration-job.yaml
+          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-prod || true
+
+      - name: Deploy application with Kustomize (DEV-10)
+        run: |
+          cd deploy/overlays/prod
+          kustomize edit set image ghcr.io/leviuuuwwu/proyectofinaldevmet=ghcr.io/${{ github.repository }}:${{ github.sha }} || true
+          kubectl apply -k .
+          kubectl rollout status deployment/search-api -n search-prod --timeout=120s
+          kubectl rollout status deployment/search-indexer -n search-prod --timeout=120s
