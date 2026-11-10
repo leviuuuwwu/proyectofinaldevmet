@@ -1,0 +1,631 @@
+openapi: 3.1.0
+info:
+  title: Search API — Escenario 4 (búsqueda e indexación)
+  version: 0.1.0
+  description: |
+    Catálogo de documentos (fuente autoritativa en PostgreSQL) con un índice de búsqueda
+    derivado que se actualiza de forma asíncrona. Una escritura confirmada (2xx) queda en el
+    catálogo; su visibilidad en `/search` se consulta con `/documents/{id}/index-status`.
+
+    Autenticación: `Authorization: Bearer <token>`. Roles jerárquicos: `admin` ⊃ `editor` ⊃ `reader`.
+    Sin token o token inválido → 401; rol insuficiente → 403.
+    Errores: `application/problem+json` (RFC 9457) con `correlationId`. Toda respuesta incluye
+    el encabezado `X-Correlation-Id` (se respeta el recibido si es válido; si no, se genera).
+servers:
+  - url: http://localhost:8080
+    description: Local
+tags:
+  - name: ops
+  - name: catalog
+  - name: search
+  - name: indexing
+  - name: admin
+
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Proceso vivo (no consulta la base de datos)
+      security: []
+      responses:
+        "200":
+          description: Vivo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+              example: { status: ok }
+
+  /readyz:
+    get:
+      tags: [ops]
+      summary: Listo para recibir tráfico (base de datos alcanzable)
+      security: []
+      responses:
+        "200":
+          description: Listo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+              example: { status: ok }
+        "503":
+          description: Base de datos no alcanzable
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              example:
+                type: /problems/not-ready
+                title: Service not ready
+                status: 503
+                detail: Database is not reachable
+                correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+
+  /version:
+    get:
+      tags: [ops]
+      summary: Versión desplegada y commit de origen
+      security: []
+      responses:
+        "200":
+          description: Versión
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Version" }
+              example:
+                version: 0.1.0
+                commit: 3f2a9c1d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a39
+                builtAt: "2026-11-07T15:04:05Z"
+
+  /metrics:
+    get:
+      tags: [ops]
+      summary: Métricas Prometheus (no se expone por Ingress en producción)
+      security: []
+      responses:
+        "200":
+          description: Formato de exposición de Prometheus
+          content:
+            text/plain:
+              schema: { type: string }
+              example: |
+                # TYPE app_build_info gauge
+                app_build_info{version="0.1.0",commit="3f2a9c1",component="api"} 1
+
+  /documents:
+    post:
+      tags: [catalog]
+      summary: Crear documento (rol editor)
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentInput" }
+            example:
+              title: Guía de respaldo de bases de datos
+              description: Procedimiento para respaldar y restaurar PostgreSQL en el clúster.
+              tags: [postgres, respaldo]
+              category: operaciones
+              date: "2026-10-01T00:00:00Z"
+              status: published
+      responses:
+        "201":
+          description: Guardado en el catálogo; indexación pendiente
+          headers:
+            Location:
+              schema: { type: string }
+              example: /documents/0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+            ETag:
+              schema: { type: string }
+              example: '"1"'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteAccepted" }
+              example:
+                id: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                version: 1
+                indexState: pending
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /documents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [catalog]
+      summary: Leer documento del catálogo en cualquier estado (rol editor)
+      operationId: getDocument
+      responses:
+        "200":
+          description: Documento
+          headers:
+            ETag:
+              schema: { type: string }
+              example: '"3"'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+              example:
+                id: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                title: Guía de respaldo de bases de datos
+                description: Procedimiento para respaldar y restaurar PostgreSQL en el clúster.
+                tags: [postgres, respaldo]
+                category: operaciones
+                date: "2026-10-01T00:00:00Z"
+                status: published
+                version: 3
+                createdAt: "2026-11-01T10:00:00Z"
+                updatedAt: "2026-11-02T08:30:00Z"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [catalog]
+      summary: Reemplazar documento con control de concurrencia optimista (rol editor)
+      description: |
+        `If-Match` lleva la versión conocida por el cliente (`3` o `"3"`). Si no coincide con la
+        versión actual → 409. Para despublicar se usa `POST /documents/{id}/unpublish`.
+      operationId: updateDocument
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema: { type: string, pattern: '^"?[1-9][0-9]*"?$' }
+          example: '"3"'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentInput" }
+            example:
+              title: Guía de respaldo y restauración de bases de datos
+              description: Procedimiento actualizado para PostgreSQL 17.
+              tags: [postgres, respaldo, restauracion]
+              category: operaciones
+              date: "2026-10-01T00:00:00Z"
+              status: published
+      responses:
+        "200":
+          description: Guardado en el catálogo; indexación pendiente
+          headers:
+            ETag:
+              schema: { type: string }
+              example: '"4"'
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteAccepted" }
+              example:
+                id: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                version: 4
+                indexState: pending
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/VersionConflict" }
+
+  /documents/{id}/unpublish:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    post:
+      tags: [catalog]
+      summary: Despublicar documento (rol editor)
+      description: |
+        Idempotente: si ya está despublicado responde 200 con la versión actual sin crear
+        una nueva. El documento se conserva en el catálogo y se elimina del índice de forma asíncrona.
+      operationId: unpublishDocument
+      responses:
+        "200":
+          description: Despublicado en el catálogo; indexación pendiente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteAccepted" }
+              example:
+                id: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                version: 5
+                indexState: pending
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /documents/{id}/index-status:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [indexing]
+      summary: Distinguir "guardado en catálogo" de "aplicado al índice" (rol editor)
+      description: |
+        `indexed` cuando `indexedVersion >= catalogVersion`; `failed` cuando el último intento
+        para la versión actual registró error; en otro caso `pending`.
+      operationId: getDocumentIndexStatus
+      responses:
+        "200":
+          description: Estado de indexación del documento
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentIndexStatus" }
+              examples:
+                pending:
+                  value:
+                    docId: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                    catalogVersion: 5
+                    indexedVersion: 4
+                    state: pending
+                    lastError: null
+                    committedAt: "2026-11-02T09:00:00Z"
+                    indexedAt: "2026-11-02T08:30:01Z"
+                indexed:
+                  value:
+                    docId: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                    catalogVersion: 5
+                    indexedVersion: 5
+                    state: indexed
+                    lastError: null
+                    committedAt: "2026-11-02T09:00:00Z"
+                    indexedAt: "2026-11-02T09:00:01Z"
+                failed:
+                  value:
+                    docId: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                    catalogVersion: 5
+                    indexedVersion: 4
+                    state: failed
+                    lastError: "connection terminated unexpectedly"
+                    committedAt: "2026-11-02T09:00:00Z"
+                    indexedAt: "2026-11-02T08:30:01Z"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /search:
+    get:
+      tags: [search]
+      summary: Búsqueda por texto con filtros, orden y paginación (rol reader)
+      description: |
+        Solo devuelve documentos publicados según el índice. Texto con
+        `websearch_to_tsquery('spanish', q)` sobre título y descripción. Filtros combinables:
+        `tags` (todas las etiquetas indicadas) y `category`. Orden determinista:
+        `relevance` → rank DESC, date DESC, id ASC; `date` → date DESC, id ASC.
+        Sin `q`, `relevance` equivale a `date`.
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 200 }
+          example: respaldo postgres
+        - name: tags
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 10
+            items: { $ref: "#/components/schemas/Tag" }
+          example: [postgres]
+        - name: category
+          in: query
+          schema: { $ref: "#/components/schemas/Category" }
+          example: operaciones
+        - name: sort
+          in: query
+          schema: { type: string, enum: [relevance, date], default: relevance }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Página de resultados
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResult" }
+              example:
+                total: 37
+                page: 1
+                pageSize: 20
+                items:
+                  - id: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+                    title: Guía de respaldo de bases de datos
+                    description: Procedimiento para respaldar y restaurar PostgreSQL en el clúster.
+                    tags: [postgres, respaldo]
+                    category: operaciones
+                    date: "2026-10-01T00:00:00Z"
+                    rank: 0.6079
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /index/status:
+    get:
+      tags: [indexing]
+      summary: Estado global de indexación y errores (rol editor)
+      operationId: getIndexStatus
+      responses:
+        "200":
+          description: Resumen del outbox
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IndexStatus" }
+              example:
+                pending: 12
+                failed: 1
+                oldestPendingAgeSeconds: 3.4
+                lastIndexedAt: "2026-11-02T09:00:01Z"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/reindex:
+    post:
+      tags: [admin]
+      summary: Reconstruir el índice desde el catálogo (rol admin)
+      description: |
+        Puebla `search_documents_shadow` desde `documents` y hace swap atómico; las búsquedas
+        no se interrumpen. Solo una reconstrucción a la vez (409 si hay una en curso).
+      operationId: startReindex
+      responses:
+        "202":
+          description: Reconstrucción aceptada
+          headers:
+            Location:
+              schema: { type: string }
+              example: /admin/reindex/5e1d2c3b-4a59-4687-9a8b-7c6d5e4f3a2b
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReindexAccepted" }
+              example: { jobId: 5e1d2c3b-4a59-4687-9a8b-7c6d5e4f3a2b }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: Ya existe una reconstrucción en curso
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              example:
+                type: /problems/reindex-in-progress
+                title: Reindex already running
+                status: 409
+                detail: Job 5e1d2c3b-4a59-4687-9a8b-7c6d5e4f3a2b is running
+                correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+
+  /admin/reindex/{jobId}:
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+        example: 5e1d2c3b-4a59-4687-9a8b-7c6d5e4f3a2b
+    get:
+      tags: [admin]
+      summary: Estado de una reconstrucción (rol admin)
+      operationId: getReindexJob
+      responses:
+        "200":
+          description: Estado del job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReindexJob" }
+              example:
+                jobId: 5e1d2c3b-4a59-4687-9a8b-7c6d5e4f3a2b
+                state: succeeded
+                startedAt: "2026-11-02T10:00:00Z"
+                finishedAt: "2026-11-02T10:00:04Z"
+                documents: 1942
+                error: null
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 0b8e6c2a-5d1f-4a7e-9c3b-2f1e0d9c8b7a
+
+  schemas:
+    Tag:
+      type: string
+      pattern: "^[a-z0-9-]{1,40}$"
+    Category:
+      type: string
+      minLength: 1
+      maxLength: 50
+    DocumentInput:
+      type: object
+      additionalProperties: false
+      required: [title, category, date, status]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000, default: "" }
+        tags:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          default: []
+          items: { $ref: "#/components/schemas/Tag" }
+        category: { $ref: "#/components/schemas/Category" }
+        date: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [draft, published]
+    Document:
+      type: object
+      required: [id, title, description, tags, category, date, status, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        tags: { type: array, items: { $ref: "#/components/schemas/Tag" } }
+        category: { $ref: "#/components/schemas/Category" }
+        date: { type: string, format: date-time }
+        status: { type: string, enum: [draft, published, unpublished] }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WriteAccepted:
+      type: object
+      required: [id, version, indexState]
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        indexState: { type: string, enum: [pending] }
+    DocumentIndexStatus:
+      type: object
+      required: [docId, catalogVersion, indexedVersion, state, lastError, committedAt, indexedAt]
+      properties:
+        docId: { type: string, format: uuid }
+        catalogVersion: { type: integer, minimum: 1 }
+        indexedVersion: { type: [integer, "null"] }
+        state: { type: string, enum: [pending, indexed, failed] }
+        lastError: { type: [string, "null"] }
+        committedAt: { type: string, format: date-time }
+        indexedAt: { type: [string, "null"], format: date-time }
+    SearchHit:
+      type: object
+      required: [id, title, description, tags, category, date, rank]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        tags: { type: array, items: { $ref: "#/components/schemas/Tag" } }
+        category: { $ref: "#/components/schemas/Category" }
+        date: { type: string, format: date-time }
+        rank: { type: number, description: "ts_rank; 0 cuando no hay q" }
+    SearchResult:
+      type: object
+      required: [total, page, pageSize, items]
+      properties:
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 50 }
+        items: { type: array, items: { $ref: "#/components/schemas/SearchHit" } }
+    IndexStatus:
+      type: object
+      required: [pending, failed, oldestPendingAgeSeconds, lastIndexedAt]
+      properties:
+        pending: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        oldestPendingAgeSeconds: { type: [number, "null"] }
+        lastIndexedAt: { type: [string, "null"], format: date-time }
+    ReindexAccepted:
+      type: object
+      required: [jobId]
+      properties:
+        jobId: { type: string, format: uuid }
+    ReindexJob:
+      type: object
+      required: [jobId, state, startedAt, finishedAt, documents, error]
+      properties:
+        jobId: { type: string, format: uuid }
+        state: { type: string, enum: [queued, running, succeeded, failed] }
+        startedAt: { type: [string, "null"], format: date-time }
+        finishedAt: { type: [string, "null"], format: date-time }
+        documents: { type: [integer, "null"], minimum: 0 }
+        error: { type: [string, "null"] }
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok] }
+    Version:
+      type: object
+      required: [version, commit, builtAt]
+      properties:
+        version: { type: string }
+        commit: { type: string }
+        builtAt: { type: string }
+    Problem:
+      type: object
+      required: [type, title, status, correlationId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          description: Detalle de validación (solo en 400)
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+
+  responses:
+    BadRequest:
+      description: Entrada inválida
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: /problems/validation
+            title: Invalid request
+            status: 400
+            detail: Request does not match the contract
+            correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+            errors:
+              - { path: /body/title, message: must NOT have more than 200 characters }
+    Unauthorized:
+      description: Sin token o token inválido
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+          example: Bearer
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: /problems/unauthorized
+            title: Unauthorized
+            status: 401
+            correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+    Forbidden:
+      description: Rol insuficiente
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: /problems/forbidden
+            title: Forbidden
+            status: 403
+            detail: Role 'reader' cannot perform this operation
+            correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+    NotFound:
+      description: No existe
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: /problems/not-found
+            title: Not found
+            status: 404
+            correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+    VersionConflict:
+      description: "`If-Match` no coincide con la versión actual"
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: /problems/version-conflict
+            title: Version conflict
+            status: 409
+            detail: Expected version 3 but current is 4
+            correlationId: 7f9c2a1e-3b4d-4e5f-8a6b-1c2d3e4f5a6b
+
+security:
+  - bearerAuth: []

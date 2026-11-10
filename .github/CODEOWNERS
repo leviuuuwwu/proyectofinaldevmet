@@ -1,0 +1,27 @@
+# La última regla que coincide gana.
+# Leví @leviuuuwwu (núcleo y arquitectura) · Daniela @danielaguardad0 (infraestructura)
+# Ricardo @Richiess1 (contenedores, Kubernetes y entrega) · Astrid @astrid-ayala (datos, pruebas y métricas)
+
+# Por defecto (raíz, configuración de seguridad, package.json)
+*                                   @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
+
+/apps/api/                          @leviuuuwwu
+
+/infra/                             @danielaguardad0
+
+/deploy/                            @Richiess1
+/Dockerfile                         @Richiess1
+
+/.github/workflows/                 @Richiess1
+/.github/workflows/terraform-*.yml  @danielaguardad0
+
+/tests/                             @astrid-ayala
+/tools/datagen/                     @astrid-ayala
+
+/observability/dashboards/          @astrid-ayala
+/observability/rules/               @astrid-ayala
+/observability/helm-values/         @danielaguardad0
+
+/docs/                              @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
+/docs/contracts/                    @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
+/.github/CODEOWNERS                 @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
