@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   type        = string
   description = "Nombre del Resource Group para el proyecto"
-  default     = "rg-search-engine-devmet"
+  default     = "rg-search-devmet"
 }
 
 variable "monthly_budget_amount" {
