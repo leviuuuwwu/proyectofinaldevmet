@@ -18,7 +18,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: migrate
-          image: ghcr.io/leviuuuwwu/proyectofinaldevmet:latest
+          image: ghcr.io/leviuuuwwu/search-api:latest
           command: ["node", "dist/migrate.js"]
           envFrom:
             - secretRef:
