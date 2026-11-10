@@ -6,8 +6,8 @@ variable "bootstrap_resource_group_name" {
 
 variable "location" {
   type        = string
-  description = "Región de Azure (misma que infra/variables.tf)"
-  default     = "eastus"
+  description = "Región de Azure (misma que infra/variables.tf). Debe estar en la lista de regiones permitidas por la política \"Allowed resource deployment regions\" de la suscripción (westus2, canadacentral, chilecentral, mexicocentral, northcentralus)."
+  default     = "westus2"
 }
 
 variable "storage_account_name" {
