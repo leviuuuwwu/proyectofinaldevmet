@@ -1,7 +1,7 @@
 variable "bootstrap_resource_group_name" {
   type        = string
   description = "Resource Group propio del bootstrap, solo para el storage account del estado"
-  default     = "rg-tfstate-search-engine-devmet"
+  default     = "rg-bootstrap-devmet"
 }
 
 variable "location" {
@@ -29,7 +29,7 @@ variable "container_name" {
 variable "target_resource_group_name" {
   type        = string
   description = "Resource Group que gestionará infra/main.tf (ver infra/variables.tf). El Service Principal queda limitado a este scope."
-  default     = "rg-search-engine-devmet"
+  default     = "rg-search-devmet"
 }
 
 variable "github_org" {
@@ -44,6 +44,18 @@ variable "github_repo" {
   default     = "proyectofinaldevmet"
 }
 
+variable "github_org_id" {
+  type        = string
+  description = "ID inmutable del owner/org de GitHub (gh api repos/<org>/<repo> --jq .owner.id). Este repo tiene activado el formato de subject OIDC con IDs incluidos."
+  default     = "174132840"
+}
+
+variable "github_repo_id" {
+  type        = string
+  description = "ID inmutable del repositorio de GitHub (gh api repos/<org>/<repo> --jq .id)."
+  default     = "1445084285"
+}
+
 variable "github_branch" {
   type        = string
   description = "Rama habilitada para el federated credential (OIDC)"
@@ -53,7 +65,7 @@ variable "github_branch" {
 variable "app_display_name" {
   type        = string
   description = "Nombre de la App Registration usada por GitHub Actions"
-  default     = "search-engine-devmet-github-actions"
+  default     = "sp-proyectofinaldevmet"
 }
 
 variable "terraform_apply_environment" {
