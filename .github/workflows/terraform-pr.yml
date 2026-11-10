@@ -72,13 +72,12 @@ jobs:
           TF_VAR_admin_ip: ${{ vars.TF_VAR_ADMIN_IP }}
           TF_VAR_admin_ssh_public_key: ${{ secrets.TF_VAR_ADMIN_SSH_PUBLIC_KEY }}
           TF_VAR_k3s_install_script_sha256: ${{ vars.TF_VAR_K3S_INSTALL_SCRIPT_SHA256 }}
+        # Sin pipefail, el código de salida sería el de tee y un plan fallido
+        # quedaría en verde.
         run: |
-          terraform plan -no-color -input=false -out=tfplan.binary | tee plan_output.txt
+          set -o pipefail
+          terraform plan -no-color -input=false -out=tfplan.binary 2>&1 | tee plan_output.txt
         continue-on-error: true
-
-      - name: Fail if plan failed
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
 
       - name: Publish plan as PR comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -116,3 +115,8 @@ jobs:
                 body,
               });
             }
+
+      # Va después del comentario para que un plan fallido también se publique.
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1

@@ -10,6 +10,10 @@ on:
     paths:
       - 'infra/**'
       - '.github/workflows/terraform-*.yml'
+  # Para reconstruir tras un destroy sin un commit artificial
+  # (docs/runbooks/costos-y-reconstruccion.md). Sigue pasando por el gate del
+  # environment terraform-prod.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,6 +25,7 @@ concurrency:
 
 jobs:
   apply:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: terraform-prod
