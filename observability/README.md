@@ -1,6 +1,6 @@
 # observability — Dashboards, reglas y valores Helm
 
-Dueñas: Astrid (`dashboards/`, `rules/`) y Daniela (`helm-values/`). Los dashboards
+Dueños: Astrid (`dashboards/`, `rules/`) y Daniela y Ricardo (`helm-values/`). Los dashboards
 (≥ 6 paneles) y las reglas de alerta (≥ 2, como PrometheusRule) usan las métricas de
 `docs/contracts/telemetry.md`; `helm-values/` versiona cert-manager, kube-prometheus-stack,
 Loki, Tempo y OTel Collector.
