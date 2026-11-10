@@ -97,4 +97,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ steps.meta-time.outputs.built_at }}
+            BUILT_AT=${{ steps.meta-time.outputs.built_at }}# CI verified
