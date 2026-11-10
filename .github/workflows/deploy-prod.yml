@@ -1,0 +1,82 @@
+# Production is deployed manually (repo is private: environments can't require
+# reviewers). See docs/adr/0003. DEV-05.
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: "Commit SHA (40 hex) de la imagen ya validada en dev"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Validate input and actor
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          ACTOR: ${{ github.actor }}
+          APPROVERS: ${{ vars.PROD_APPROVERS }}
+        run: |
+          [[ "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_sha debe ser un SHA de 40 hex"; exit 1; }
+          [[ ",$APPROVERS," == *",$ACTOR,"* ]] || { echo "::error::$ACTOR no está en PROD_APPROVERS"; exit 1; }
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the SHA is on main and its image build passed
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor "$IMAGE_SHA" origin/main || { echo "::error::$IMAGE_SHA no está en main"; exit 1; }
+          ok=$(gh run list --workflow app-delivery.yml --commit "$IMAGE_SHA" --status success --json databaseId --jq length)
+          [ "$ok" -gt 0 ] || { echo "::error::No hay build exitoso de la imagen para $IMAGE_SHA"; exit 1; }
+
+      - name: Set up kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "$KUBECONFIG_DATA" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy image to search-prod
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/search-api:${{ inputs.image_sha }}
+        run: |
+          cd deploy/overlays/prod
+          kustomize edit set image "ghcr.io/leviuuuwwu/search-api=$IMAGE"
+          
+          # 1. Eliminar el Job anterior para evitar error de inmutabilidad (Punto 8)
+          kubectl delete job db-migration -n search-prod --ignore-not-found=true
+          
+          # 2. Aplicar manifiestos
+          kubectl apply -k .
+          
+          # 3. Esperar que las migraciones terminen exitosamente (Punto 7: db-migration)
+          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-prod
+          
+          # 4. Validar rollouts
+          kubectl rollout status deployment/search-api -n search-prod --timeout=120s
+          kubectl rollout status deployment/search-indexer -n search-prod --timeout=120s
+
+      - name: Summary
+        env:
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          ACTOR: ${{ github.actor }}
+        run: echo "Desplegado \`$IMAGE_SHA\` en search-prod por @$ACTOR" >> "$GITHUB_STEP_SUMMARY"
