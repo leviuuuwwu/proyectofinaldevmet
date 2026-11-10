@@ -1,0 +1,68 @@
+# Apply de Terraform en main (DEV-08), con aprobación humana vía el
+# Environment terraform-prod. Aplica únicamente el plan ya guardado en
+# archivo (.tfplan), nunca un apply interactivo ni -auto-approve ciego.
+# Autenticación con Azure solo vía OIDC, sin credenciales estáticas.
+name: terraform-apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/terraform-*.yml'
+  # Para reconstruir tras un destroy sin un commit artificial
+  # (docs/runbooks/costos-y-reconstruccion.md). Sigue pasando por el gate del
+  # environment terraform-prod.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: terraform-prod
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      - name: terraform init
+        working-directory: infra
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_BACKEND_RESOURCE_GROUP_NAME }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_BACKEND_STORAGE_ACCOUNT_NAME }}" \
+            -backend-config="container_name=${{ secrets.TF_BACKEND_CONTAINER_NAME }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: terraform plan
+        working-directory: infra
+        env:
+          TF_VAR_admin_ip: ${{ vars.TF_VAR_ADMIN_IP }}
+          TF_VAR_admin_ssh_public_key: ${{ secrets.TF_VAR_ADMIN_SSH_PUBLIC_KEY }}
+          TF_VAR_k3s_install_script_sha256: ${{ vars.TF_VAR_K3S_INSTALL_SCRIPT_SHA256 }}
+        run: terraform plan -no-color -input=false -out=tfplan.binary
+
+      - name: terraform apply
+        working-directory: infra
+        run: terraform apply -input=false tfplan.binary
