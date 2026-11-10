@@ -62,11 +62,11 @@ jobs:
             BUILT_AT=${{ steps.meta-time.outputs.built_at }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
           image-ref: search-api:local-test
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
