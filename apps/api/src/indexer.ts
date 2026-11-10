@@ -15,12 +15,12 @@ const { startWorker } = await import("./indexer/worker.ts");
 
 const pool = createPool(config);
 const registry = createRegistry("indexer");
-createIndexerMetrics(registry);
+const metrics = createIndexerMetrics(registry);
 
 const app = createHttpServer(logger);
 registerOpsRoutes(app, { pool, registry, exposeVersion: false });
 
-const worker = startWorker({ config, logger });
+const worker = startWorker({ pool, config, logger, metrics });
 
 const shutdown = async (signal: string) => {
 	logger.info({ event: "process.stopping", signal }, "shutting down");

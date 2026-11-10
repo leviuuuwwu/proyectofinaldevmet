@@ -20,7 +20,13 @@ export interface Config {
 	logLevel: string;
 	otelServiceName: string;
 	otelEndpoint: string | undefined;
-	indexer: { batchSize: number; pollMs: number; maxAttempts: number };
+	indexer: {
+		batchSize: number;
+		pollMs: number;
+		maxAttempts: number;
+		// dev only: documents of this category fail to index (fault injection).
+		faultCategory: string | undefined;
+	};
 }
 
 export type ConfigResult =
@@ -73,6 +79,11 @@ export function parseConfig(
 		errors.push("OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL");
 	}
 
+	const faultCategory = env.INDEXER_FAULT_CATEGORY || undefined;
+	if (faultCategory !== undefined && appEnv !== "dev") {
+		errors.push("INDEXER_FAULT_CATEGORY is only allowed when APP_ENV=dev");
+	}
+
 	const authTokens =
 		component === "api" ? parseAuthTokens(env.AUTH_TOKENS_JSON, errors) : [];
 
@@ -91,6 +102,7 @@ export function parseConfig(
 			batchSize: int("INDEXER_BATCH_SIZE", 100, 1, 1000),
 			pollMs: int("INDEXER_POLL_MS", 1000, 50, 60000),
 			maxAttempts: int("INDEXER_MAX_ATTEMPTS", 5, 1, 100),
+			faultCategory,
 		},
 	};
 
