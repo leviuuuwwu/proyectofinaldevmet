@@ -40,7 +40,7 @@ jobs:
         run: |
           cd deploy/overlays/dev
           kustomize edit set image "ghcr.io/leviuuuwwu/search-api=ghcr.io/${{ github.repository_owner }}/search-api:${IMAGE_SHA}"
-
+          
           # 1. Crear o actualizar secretos de forma idempotente
           kubectl -n search-dev create secret generic postgres-credentials \
             --from-literal=POSTGRES_USER=search \
@@ -53,14 +53,16 @@ jobs:
             --from-literal=AUTH_TOKENS_JSON="$AUTH_TOKENS_JSON" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # 2. Borrar job de migracion previo
+          # 2. Eliminar el Job anterior para evitar error de inmutabilidad en k8s
           kubectl delete job db-migration -n search-dev --ignore-not-found=true
 
           # 3. Aplicar manifiestos y esperar a PostgreSQL
           kubectl apply -k .
           kubectl -n search-dev rollout status statefulset/postgres --timeout=120s
-
-          # 4. Esperar migraciones y validar deployments
+          
+          # 3. Esperar a que el Job de migraciones complete ANTES de validar la app (Punto 7: db-migration)
           kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-dev
+          
+          # 4. Verificar rollout de deployments
           kubectl rollout status deployment/search-api -n search-dev --timeout=120s
           kubectl rollout status deployment/search-indexer -n search-dev --timeout=120s
