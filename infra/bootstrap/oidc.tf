@@ -4,8 +4,14 @@
 
 data "azurerm_client_config" "current" {}
 
+# El provider azuread v2.x ya no asigna owner por defecto (a diferencia de
+# v1.x): sin esto, la app queda sin owner y la creación posterior del
+# Service Principal falla con 403 "Request principal is not the owner".
+data "azuread_client_config" "current" {}
+
 resource "azuread_application" "github_actions" {
   display_name = var.app_display_name
+  owners       = [data.azuread_client_config.current.object_id]
 }
 
 resource "azuread_service_principal" "github_actions" {
