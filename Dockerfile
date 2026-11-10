@@ -32,7 +32,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Argumentos de trazabilidad para el endpoint /version
+# Eliminar npm global y yarn para que Trivy no reporte CVEs de herramientas de build en prod
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /opt/yarn*
+
 ARG GIT_SHA="unknown"
 ARG BUILT_AT="unknown"
 ENV GIT_SHA=${GIT_SHA}

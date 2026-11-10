@@ -2,14 +2,14 @@ name: App Delivery CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, chore/dia-0-bootstrap ]
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, chore/dia-0-bootstrap ]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/search-api
 
 jobs:
   build-scan-publish:
@@ -36,7 +36,7 @@ jobs:
             type=sha,format=long,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
-            org.opencontainers.image.title=search-indexer-engine
+            org.opencontainers.image.title=search-api
             org.opencontainers.image.description=Search and Indexing Engine API and Worker
             org.opencontainers.image.revision=${{ github.sha }}
 
@@ -51,7 +51,7 @@ jobs:
             BUILT_AT=${{ github.event.repository.updated_at }}
 
       - name: Run Trivy vulnerability scanner (DEV-03)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-test
           format: 'table'
