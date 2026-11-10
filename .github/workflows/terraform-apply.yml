@@ -1,18 +1,13 @@
-# Apply de Terraform en main (DEV-08), con aprobación humana vía el
-# Environment terraform-prod. Aplica únicamente el plan ya guardado en
-# archivo (.tfplan), nunca un apply interactivo ni -auto-approve ciego.
-# Autenticación con Azure solo vía OIDC, sin credenciales estáticas.
+# Apply de Terraform en main (DEV-08) con aprobación humana. El repo es privado
+# en una cuenta personal, donde GitHub no permite required reviewers en
+# environments, así que se usa el mismo patrón que deploy-prod.yml (ADR 0003):
+# solo ejecución manual desde main y solo por alguien en vars.PROD_APPROVERS.
+# El environment terraform-prod se mantiene porque el subject OIDC del
+# federated credential depende de él. Aplica únicamente el plan guardado en
+# archivo, nunca -auto-approve. Autenticación con Azure solo vía OIDC.
 name: terraform-apply
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'infra/**'
-      - '.github/workflows/terraform-*.yml'
-  # Para reconstruir tras un destroy sin un commit artificial
-  # (docs/runbooks/costos-y-reconstruccion.md). Sigue pasando por el gate del
-  # environment terraform-prod.
   workflow_dispatch:
 
 permissions:
@@ -35,6 +30,13 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
       ARM_USE_OIDC: "true"
     steps:
+      - name: Validate actor
+        env:
+          ACTOR: ${{ github.actor }}
+          APPROVERS: ${{ vars.PROD_APPROVERS }}
+        run: |
+          [[ ",$APPROVERS," == *",$ACTOR,"* ]] || { echo "::error::$ACTOR no está en PROD_APPROVERS"; exit 1; }
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
