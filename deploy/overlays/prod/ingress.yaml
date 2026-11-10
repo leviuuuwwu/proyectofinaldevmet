@@ -9,10 +9,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - search-api.local
+        - search-engine-devmet-r2544.eastus.cloudapp.azure.com
       secretName: search-api-tls
   rules:
-    - host: search-api.local
+    - host: search-engine-devmet-r2544.eastus.cloudapp.azure.com
       http:
         paths:
           - path: /
