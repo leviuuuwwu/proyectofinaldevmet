@@ -14,6 +14,7 @@ import {
 	jobIdParams,
 	searchQuery,
 } from "./schemas.ts";
+import { type SearchParams, searchHandler } from "./search.ts";
 
 export interface RouteDeps {
 	pool: Pool;
@@ -70,10 +71,10 @@ export function registerContractRoutes(
 		{ ...editor, schema: { params: documentIdParams } },
 		indexing.documentStatus,
 	);
-	app.get(
+	app.get<{ Querystring: SearchParams }>(
 		"/search",
 		{ ...reader, schema: { querystring: searchQuery } },
-		notImplemented,
+		searchHandler(deps.pool),
 	);
 	app.get("/index/status", editor, indexing.globalStatus);
 	app.post("/admin/reindex", admin, notImplemented);
