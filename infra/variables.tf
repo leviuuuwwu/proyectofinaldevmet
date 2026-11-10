@@ -4,11 +4,6 @@ variable "resource_group_name" {
   default     = "rg-search-engine-devmet"
 }
 
-variable "location" {
-  type        = string
-  description = "Región de Azure"
-  default     = "eastus"
-}
 
 variable "dns_label" {
   type        = string
