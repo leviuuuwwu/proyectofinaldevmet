@@ -6,6 +6,7 @@ import type { AuthToken } from "../shared/config.ts";
 import type { Pool } from "../shared/db.ts";
 import { sendProblem } from "../shared/problem.ts";
 import { catalogHandlers, type DocumentInput } from "./catalog.ts";
+import { indexingHandlers } from "./indexing.ts";
 import {
 	documentIdParams,
 	documentInput,
@@ -35,6 +36,7 @@ export function registerContractRoutes(
 	const editor = { onRequest: requireRole("editor", deps.tokens) };
 	const admin = { onRequest: requireRole("admin", deps.tokens) };
 	const catalog = catalogHandlers(deps.pool);
+	const indexing = indexingHandlers(deps.pool);
 
 	app.post<{ Body: DocumentInput }>(
 		"/documents",
@@ -63,17 +65,17 @@ export function registerContractRoutes(
 		{ ...editor, schema: { params: documentIdParams } },
 		catalog.unpublish,
 	);
-	app.get(
+	app.get<IdParams>(
 		"/documents/:id/index-status",
 		{ ...editor, schema: { params: documentIdParams } },
-		notImplemented,
+		indexing.documentStatus,
 	);
 	app.get(
 		"/search",
 		{ ...reader, schema: { querystring: searchQuery } },
 		notImplemented,
 	);
-	app.get("/index/status", editor, notImplemented);
+	app.get("/index/status", editor, indexing.globalStatus);
 	app.post("/admin/reindex", admin, notImplemented);
 	app.get(
 		"/admin/reindex/:jobId",
