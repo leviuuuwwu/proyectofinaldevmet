@@ -4,6 +4,23 @@ variable "resource_group_name" {
   default     = "rg-search-devmet"
 }
 
+variable "monthly_budget_amount" {
+  type        = number
+  description = "Presupuesto mensual del Resource Group en la moneda de facturación (USD). Ver docs/runbooks/costos-y-reconstruccion.md para la estimación."
+  default     = 40
+}
+
+variable "budget_start_date" {
+  type        = string
+  description = "Inicio del presupuesto: primer día de un mes, formato RFC 3339 (YYYY-MM-01T00:00:00Z). Cambiarlo recrea el presupuesto."
+  default     = "2026-11-01T00:00:00Z"
+
+  validation {
+    condition     = can(regex("^\\d{4}-\\d{2}-01T00:00:00Z$", var.budget_start_date))
+    error_message = "budget_start_date debe ser el primer día de un mes: YYYY-MM-01T00:00:00Z."
+  }
+}
+
 variable "dns_label" {
   type        = string
   description = "Etiqueta DNS única para la IP pública de Azure"
