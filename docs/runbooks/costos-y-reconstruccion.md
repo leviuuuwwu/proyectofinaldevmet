@@ -67,9 +67,12 @@ requiere repetir el bootstrap. Con la VM destruida el costo queda en < 0.1 USD/m
      `TF_VAR_ADMIN_SSH_PUBLIC_KEY`.
    - Variables: `ARM_SUBSCRIPTION_ID`, `TF_VAR_ADMIN_IP`,
      `TF_VAR_K3S_INSTALL_SCRIPT_SHA256`.
-3. **Environment `terraform-prod`** con required reviewers (gate del apply).
-4. **Infraestructura**: ejecutar `terraform-apply.yml` (Actions → Run workflow, o
-   un merge a `main` que toque `infra/`) y aprobarlo en el environment.
+3. **Environment `terraform-prod`** (sin reglas: el subject OIDC del apply depende
+   de su nombre) y la variable `PROD_APPROVERS` con los logins autorizados.
+4. **Infraestructura**: revisar el plan publicado en el PR y, ya en `main`,
+   ejecutar `terraform-apply.yml` (Actions → Run workflow, rama `main`). Solo
+   corre si quien lo dispara está en `PROD_APPROVERS` (ADR 0003): el repo es
+   privado y GitHub no permite required reviewers en sus environments.
 5. **Esperar cloud-init** (instala K3s con versión fijada y `--secrets-encryption`):
    ```bash
    ssh azureuser@<fqdn> 'cloud-init status --wait && sudo k3s kubectl get nodes'
