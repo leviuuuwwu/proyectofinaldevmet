@@ -45,7 +45,8 @@ USER node
 COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
 COPY --chown=node:node --from=prod-deps /app/package.json ./package.json
 COPY --chown=node:node --from=builder /app/apps/api/dist ./dist
-COPY --chown=node:node apps/api/migrations ./dist/migrations
+# CORREGIDO: Copiar a ./migrations para que coincida con la ruta esperada por migrate.js (/app/migrations)
+COPY --chown=node:node apps/api/migrations ./migrations
 
 EXPOSE 8080 9090
 

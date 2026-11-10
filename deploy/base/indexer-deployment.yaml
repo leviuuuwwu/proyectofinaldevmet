@@ -20,7 +20,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: indexer
-          image: ghcr.io/leviuuuwwu/proyectofinaldevmet:latest
+          image: ghcr.io/leviuuuwwu/search-api:latest
           command: ["node", "dist/indexer.js"]
           ports:
             - containerPort: 9090
