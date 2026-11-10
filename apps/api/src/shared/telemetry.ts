@@ -40,7 +40,8 @@ export function startTelemetry(config: Config): () => Promise<void> {
 					req.url === "/readyz" ||
 					req.url === "/metrics",
 			}),
-			new PgInstrumentation(),
+			// Only inside a request/batch span: the indexer's idle polling is not traced.
+			new PgInstrumentation({ requireParentSpan: true }),
 			new FastifyOtelInstrumentation({ registerOnInitialization: true }),
 		],
 	});
