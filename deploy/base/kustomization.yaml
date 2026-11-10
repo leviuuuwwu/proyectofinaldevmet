@@ -7,5 +7,5 @@ resources:
   - api-service.yaml
   - indexer-deployment.yaml
   - migration-job.yaml
-  - networkpolicy.yaml
+  - network-policy.yaml
   - rbac.yaml

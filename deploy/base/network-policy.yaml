@@ -1,3 +1,14 @@
+# Default deny: any pod not explicitly allowed below (new or mislabeled) has no traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -7,7 +18,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [api, indexer, migrate]
+        values: [search-api, search-indexer, db-migration]
   policyTypes:
     - Ingress
     - Egress
@@ -67,7 +78,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, indexer, migrate]
+                values: [search-api, search-indexer, db-migration]
       ports:
         - protocol: TCP
           port: 5432
