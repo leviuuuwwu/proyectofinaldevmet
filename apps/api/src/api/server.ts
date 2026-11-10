@@ -27,6 +27,8 @@ export function buildApi(deps: {
 	registerOpsRoutes(app, { pool: deps.pool, registry, exposeVersion: true });
 	registerContractRoutes(app, {
 		pool: deps.pool,
+		logger: deps.logger,
+		metrics,
 		tokens: deps.config.authTokens,
 	});
 	return app;

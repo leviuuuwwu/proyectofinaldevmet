@@ -35,6 +35,7 @@ Una imagen, tres comandos (mismo `WORKDIR`, usuario no root):
 | `INDEXER_BATCH_SIZE` | indexer | no | `100` | no | entero 1–1000 |
 | `INDEXER_POLL_MS` | indexer | no | `1000` | no | entero 50–60000 |
 | `INDEXER_MAX_ATTEMPTS` | indexer | no | `5` | no | entero 1–100 |
+| `INDEXER_FAULT_CATEGORY` | indexer | no | vacío = desactivado | no | texto; **solo con `APP_ENV=dev`** (en `prod` el arranque falla). Los documentos de esa categoría fallan al indexarse: sirve para demostrar errores, reintentos y alertas |
 
 `AUTH_TOKENS_JSON` contiene solo hashes SHA-256 de tokens ficticios. La API calcula el SHA-256 del
 token recibido y lo compara con cada entrada usando `crypto.timingSafeEqual` (tiempo constante).

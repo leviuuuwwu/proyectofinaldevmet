@@ -58,23 +58,37 @@ jobs:
       - name: Deploy image to search-prod
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/search-api:${{ inputs.image_sha }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          AUTH_TOKENS_JSON: ${{ secrets.AUTH_TOKENS_JSON }}
         run: |
           cd deploy/overlays/prod
           kustomize edit set image "ghcr.io/leviuuuwwu/search-api=$IMAGE"
-          
-          # 1. Eliminar el Job anterior para evitar error de inmutabilidad (Punto 8)
+
+          # 1. Crear o actualizar secretos de forma idempotente
+          kubectl -n search-prod create secret generic postgres-credentials \
+            --from-literal=POSTGRES_USER=search \
+            --from-literal=POSTGRES_DB=search \
+            --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n search-prod create secret generic app-secrets \
+            --from-literal=DATABASE_URL="postgres://search:${PG_PASSWORD}@postgres:5432/search" \
+            --from-literal=AUTH_TOKENS_JSON="$AUTH_TOKENS_JSON" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # 2. Eliminar el Job anterior para evitar error de inmutabilidad en k8s
           kubectl delete job db-migration -n search-prod --ignore-not-found=true
-          
-          # 2. Aplicar manifiestos
+
+          # 3. Aplicar manifiestos y esperar a PostgreSQL
           kubectl apply -k .
-          
-          # 3. Esperar que las migraciones terminen exitosamente (Punto 7: db-migration)
+          kubectl -n search-prod rollout status statefulset/postgres --timeout=120s
+
+          # 4. Esperar a que el Job de migraciones complete ANTES de validar la app
           kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-prod
-          
-          # 4. Validar rollouts
+
+          # 5. Verificar rollout de deployments
           kubectl rollout status deployment/search-api -n search-prod --timeout=120s
           kubectl rollout status deployment/search-indexer -n search-prod --timeout=120s
-
       - name: Summary
         env:
           IMAGE_SHA: ${{ inputs.image_sha }}

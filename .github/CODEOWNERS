@@ -1,27 +1,28 @@
 # La última regla que coincide gana.
-# Leví @leviuuuwwu (núcleo y arquitectura) · Daniela @danielaguardad0 (infraestructura)
-# Ricardo @Richiess1 (contenedores, Kubernetes y entrega) · Astrid @astrid-ayala (datos, pruebas y métricas)
+# Leví @leviuuuwwu (núcleo y arquitectura) · Daniela @danielaguardad00 y Ricardo @Richiess1
+# (infraestructura; Ricardo además contenedores, Kubernetes y entrega) · Astrid @astrid-ayala
+# (datos, pruebas y métricas). Con varios dueños en una línea basta la aprobación de uno.
 
 # Por defecto (raíz, configuración de seguridad, package.json)
-*                                   @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
+*                                   @leviuuuwwu @danielaguardad00 @Richiess1 @astrid-ayala
 
 /apps/api/                          @leviuuuwwu
 
-/infra/                             @danielaguardad0
+/infra/                             @danielaguardad00 @Richiess1
 
 /deploy/                            @Richiess1
 /Dockerfile                         @Richiess1
 
 /.github/workflows/                 @Richiess1
-/.github/workflows/terraform-*.yml  @danielaguardad0
+/.github/workflows/terraform-*.yml  @danielaguardad00 @Richiess1
 
 /tests/                             @astrid-ayala
 /tools/datagen/                     @astrid-ayala
 
 /observability/dashboards/          @astrid-ayala
 /observability/rules/               @astrid-ayala
-/observability/helm-values/         @danielaguardad0
+/observability/helm-values/         @danielaguardad00 @Richiess1
 
-/docs/                              @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
-/docs/contracts/                    @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
-/.github/CODEOWNERS                 @leviuuuwwu @danielaguardad0 @Richiess1 @astrid-ayala
+/docs/                              @leviuuuwwu @danielaguardad00 @Richiess1 @astrid-ayala
+/docs/contracts/                    @leviuuuwwu @danielaguardad00 @Richiess1 @astrid-ayala
+/.github/CODEOWNERS                 @leviuuuwwu @danielaguardad00 @Richiess1 @astrid-ayala
