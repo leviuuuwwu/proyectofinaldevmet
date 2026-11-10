@@ -23,6 +23,19 @@ export function createHttpServer(logger: Logger): FastifyInstance {
 		ajv: { customOptions: { removeAdditional: false, allErrors: true } },
 	}) as unknown as FastifyInstance;
 
+	// Body-less POSTs (unpublish, reindex) are often sent with a JSON content-type;
+	// treat an empty body as absent instead of a 400. Keeps Fastify's safe parser.
+	const parseJson = app.getDefaultJsonParser("error", "error");
+	app.removeContentTypeParser("application/json");
+	app.addContentTypeParser(
+		"application/json",
+		{ parseAs: "string" },
+		(request, body, done) =>
+			body === ""
+				? done(null, undefined)
+				: parseJson(request, body as string, done),
+	);
+
 	app.decorateRequest("principal", null);
 	app.addHook("onRequest", (request, reply, done) => {
 		reply.header("x-correlation-id", request.id);
