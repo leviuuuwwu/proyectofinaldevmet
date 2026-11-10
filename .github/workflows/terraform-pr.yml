@@ -1,0 +1,117 @@
+# Validación de Terraform en PR (DEV-08): fmt, validate, tflint y plan.
+# Nunca hace apply. Autenticación con Azure solo vía OIDC (ARM_USE_OIDC),
+# sin credenciales estáticas.
+name: terraform-pr
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/terraform-*.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: terraform-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        working-directory: infra
+        run: terraform fmt -check -recursive
+
+      - name: terraform init
+        working-directory: infra
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_BACKEND_RESOURCE_GROUP_NAME }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_BACKEND_STORAGE_ACCOUNT_NAME }}" \
+            -backend-config="container_name=${{ secrets.TF_BACKEND_CONTAINER_NAME }}" \
+            -backend-config="key=terraform.tfstate"
+
+      - name: terraform validate
+        working-directory: infra
+        run: terraform validate
+
+      - name: Set up tflint
+        uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6.3.0
+
+      - name: tflint
+        working-directory: infra
+        run: |
+          tflint --init
+          tflint
+
+      - name: terraform plan
+        id: plan
+        working-directory: infra
+        env:
+          TF_VAR_admin_ip: ${{ vars.TF_VAR_ADMIN_IP }}
+          TF_VAR_admin_ssh_public_key: ${{ secrets.TF_VAR_ADMIN_SSH_PUBLIC_KEY }}
+          TF_VAR_k3s_install_script_sha256: ${{ vars.TF_VAR_K3S_INSTALL_SCRIPT_SHA256 }}
+        run: |
+          terraform plan -no-color -input=false -out=tfplan.binary | tee plan_output.txt
+        continue-on-error: true
+
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Publish plan as PR comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'infra/plan_output.txt';
+            let plan = fs.readFileSync(path, 'utf8');
+            const marker = '<!-- terraform-plan -->';
+            const maxLen = 60000;
+            if (plan.length > maxLen) {
+              plan = plan.slice(0, maxLen) + '\n... (truncado)';
+            }
+            const body = `${marker}\n### Terraform plan\n\n<details><summary>Ver plan completo</summary>\n\n\`\`\`\n${plan}\n\`\`\`\n\n</details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
