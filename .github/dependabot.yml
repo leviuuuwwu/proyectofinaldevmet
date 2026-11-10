@@ -10,6 +10,26 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # ADR 0001 §2: stay on the OpenTelemetry 2.x line until sdk-trace-* and
+      # @fastify/otel support 3.x (0.x packages break on "minor" bumps).
+      - dependency-name: "@opentelemetry/api"
+        versions: [">=1.10.0"]
+      - dependency-name: "@opentelemetry/resources"
+        versions: [">=3.0.0"]
+      - dependency-name: "@opentelemetry/sdk-trace-*"
+        versions: [">=3.0.0"]
+      - dependency-name: "@opentelemetry/exporter-trace-otlp-http"
+        versions: [">=0.300.0"]
+      - dependency-name: "@opentelemetry/instrumentation"
+        versions: [">=0.300.0"]
+      - dependency-name: "@opentelemetry/instrumentation-http"
+        versions: [">=0.300.0"]
+      - dependency-name: "@opentelemetry/instrumentation-pg"
+        versions: [">=0.77.0"]
+      # Runtime is Node 24 LTS: types must match it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 
