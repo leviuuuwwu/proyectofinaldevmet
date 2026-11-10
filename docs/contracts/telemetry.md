@@ -46,6 +46,7 @@ prefijo estándar, para relacionarlas con las de aplicación (MET-03).
 | `correlationId` | id de la solicitud que originó la operación (si existe) |
 | `traceId`, `spanId` | contexto de traza activo (si existe) |
 | `docId` | documento afectado (permitido en logs, nunca en métricas) |
+| `linkedTraceId` | solo indexer: `traceId` de la solicitud de la API que escribió el evento (del `traceparent` del outbox); une los logs de ambos componentes |
 | `outcome` | `success` \| `failure` \| `skipped` |
 | `durationMs` | duración de la operación, cuando aplica |
 
@@ -59,9 +60,9 @@ respuesta y el texto de búsqueda completo.
 | `index.applied` | indexer | info | Evento aplicado al índice (`docId`, `durationMs`) |
 | `index.failed` | indexer | error | Error al aplicar; se incrementa `attempts` y se guarda `last_error` |
 | `index.stale_skipped` | indexer | debug | Evento con `version <= indexed_version` ignorado |
-| `indexer.idle` | indexer | debug | Ciclo sin eventos pendientes |
+| `indexer.idle` | indexer | debug | Ciclo sin eventos procesados (`reason`: `no_pending_events` \| `reindex_in_progress`) |
 | `reindex.started` | api | info | Inicio de reconstrucción (`jobId`) |
-| `reindex.finished` | api | info/error | Fin de reconstrucción (`outcome`, `durationMs`, documentos) |
+| `reindex.finished` | api | info/error/warn | Fin de reconstrucción (`outcome`, `durationMs`, documentos); `warn` con `interrupted` al marcar jobs huérfanos como fallidos al arrancar |
 | `auth.rejected` | api | warn | 401 o 403 (motivo y rol, nunca el token) |
 | `request.failed` | api | error | Respuesta 5xx (incluye `correlationId`) |
 | `config.invalid` | todos | fatal | Configuración inválida al arrancar (solo nombres de variables) |
@@ -73,7 +74,8 @@ respuesta y el texto de búsqueda completo.
 ## Trazas (OpenTelemetry, exportador OTLP/HTTP)
 
 Instrumentación automática: HTTP (`@opentelemetry/instrumentation-http`), Fastify (`@fastify/otel`)
-y PostgreSQL (`@opentelemetry/instrumentation-pg`). Spans manuales:
+y PostgreSQL (`@opentelemetry/instrumentation-pg`, solo dentro de un span padre: el sondeo inactivo
+del indexer y `/readyz` no generan trazas; `/healthz`, `/readyz` y `/metrics` tampoco). Spans manuales:
 
 | Span | Proceso | Relación | Atributos |
 |---|---|---|---|
