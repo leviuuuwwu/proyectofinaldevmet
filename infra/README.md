@@ -1,6 +1,6 @@
 # infra — Terraform, K3s y base del clúster
 
-Dueña: Daniela. Bootstrap documentado (backend remoto con lease, identidad OIDC), recursos
+Dueños: Daniela y Ricardo. Bootstrap documentado (backend remoto con lease, identidad OIDC), recursos
 Azure en Terraform (VM, red, NSG con 6443 cerrado), K3s por cloud-init con `--secrets-encryption`
 y presupuesto/alertas de costo. Namespaces `search-dev` y `search-prod` (`docs/contracts/runtime.md`).
 

@@ -1,12 +1,13 @@
-// Contract routes (docs/contracts/openapi.yaml). Routes without business logic yet
-// answer 501 problem+json.
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+// Contract routes (docs/contracts/openapi.yaml): role per route and request schemas.
+import type { FastifyInstance } from "fastify";
 import { requireRole } from "../shared/auth.ts";
 import type { AuthToken } from "../shared/config.ts";
 import type { Pool } from "../shared/db.ts";
-import { sendProblem } from "../shared/problem.ts";
+import type { Logger } from "../shared/logger.ts";
+import type { ApiMetrics } from "../shared/metrics.ts";
 import { catalogHandlers, type DocumentInput } from "./catalog.ts";
 import { indexingHandlers } from "./indexing.ts";
+import { reindexHandlers } from "./reindex.ts";
 import {
 	documentIdParams,
 	documentInput,
@@ -14,19 +15,16 @@ import {
 	jobIdParams,
 	searchQuery,
 } from "./schemas.ts";
+import { type SearchParams, searchHandler } from "./search.ts";
 
 export interface RouteDeps {
 	pool: Pool;
+	logger: Logger;
+	metrics: ApiMetrics;
 	tokens: readonly AuthToken[];
 }
 
 type IdParams = { Params: { id: string } };
-
-const notImplemented = async (_request: FastifyRequest, reply: FastifyReply) =>
-	sendProblem(reply, 501, {
-		type: "/problems/not-implemented",
-		title: "Not implemented",
-	});
 
 export function registerContractRoutes(
 	app: FastifyInstance,
@@ -37,6 +35,7 @@ export function registerContractRoutes(
 	const admin = { onRequest: requireRole("admin", deps.tokens) };
 	const catalog = catalogHandlers(deps.pool);
 	const indexing = indexingHandlers(deps.pool);
+	const reindex = reindexHandlers(deps);
 
 	app.post<{ Body: DocumentInput }>(
 		"/documents",
@@ -70,16 +69,16 @@ export function registerContractRoutes(
 		{ ...editor, schema: { params: documentIdParams } },
 		indexing.documentStatus,
 	);
-	app.get(
+	app.get<{ Querystring: SearchParams }>(
 		"/search",
 		{ ...reader, schema: { querystring: searchQuery } },
-		notImplemented,
+		searchHandler(deps.pool),
 	);
 	app.get("/index/status", editor, indexing.globalStatus);
-	app.post("/admin/reindex", admin, notImplemented);
-	app.get(
+	app.post("/admin/reindex", admin, reindex.start);
+	app.get<{ Params: { jobId: string } }>(
 		"/admin/reindex/:jobId",
 		{ ...admin, schema: { params: jobIdParams } },
-		notImplemented,
+		reindex.get,
 	);
 }

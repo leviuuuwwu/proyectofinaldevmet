@@ -20,3 +20,18 @@ process.once("SIGTERM", shutdown);
 process.once("SIGINT", shutdown);
 
 await app.listen({ host: "0.0.0.0", port: config.port });
+
+const { failInterruptedJobs } = await import("./api/reindex.ts");
+failInterruptedJobs(pool).then(
+	(count) =>
+		count > 0 &&
+		logger.warn(
+			{ event: "reindex.finished", outcome: "failure", interrupted: count },
+			"marked interrupted rebuilds as failed",
+		),
+	(err) =>
+		logger.warn(
+			{ event: "reindex.finished", outcome: "failure", err },
+			"could not check interrupted rebuilds",
+		),
+);
