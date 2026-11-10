@@ -20,7 +20,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: api
-          image: ghcr.io/leviuuuwwu/proyectofinaldevmet:latest
+          image: ghcr.io/leviuuuwwu/search-api:latest
           command: ["node", "dist/api.js"]
           ports:
             - containerPort: 8080

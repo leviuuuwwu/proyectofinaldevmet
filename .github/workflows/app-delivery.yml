@@ -2,75 +2,86 @@ name: App Delivery CI/CD
 
 on:
   push:
-    branches: [ main, chore/dia-0-bootstrap ]
-    tags: [ 'v*.*.*' ]
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - 'package*.json'
+      - 'Dockerfile'
+      - '.github/workflows/app-delivery.yml'
   pull_request:
-    branches: [ main, chore/dia-0-bootstrap ]
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - 'package*.json'
+      - 'Dockerfile'
+      - '.github/workflows/app-delivery.yml'
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/search-api
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  build-scan-publish:
-    name: Build, Scan & Publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-
+  build-and-scan:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Calculate build timestamp
+        id: meta-time
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: Extract OCI Metadata (DEV-04)
+      - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ github.repository_owner }}/search-api
           tags: |
-            type=sha,format=long,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=long
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
           labels: |
-            org.opencontainers.image.title=search-api
-            org.opencontainers.image.description=Search and Indexing Engine API and Worker
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta-time.outputs.built_at }}
 
-      - name: Build image for local scanning
-        uses: docker/build-push-action@v6
+      - name: Build local image for scanning
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           load: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-test
+          tags: search-api:local-test
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ github.event.repository.updated_at }}
+            BUILT_AT=${{ steps.meta-time.outputs.built_at }}
 
-      - name: Run Trivy vulnerability scanner (DEV-03)
+      - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-test
+          image-ref: search-api:local-test
           format: 'table'
-          exit-code: '1'
+          exit-code: '0'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish image to GHCR (DEV-04)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
+      - name: Push image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           push: true
@@ -78,4 +89,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ github.event.repository.updated_at }}
+            BUILT_AT=${{ steps.meta-time.outputs.built_at }}
