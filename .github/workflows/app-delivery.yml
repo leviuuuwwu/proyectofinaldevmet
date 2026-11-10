@@ -5,7 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'src/**'
+      - 'apps/**'
+      - 'package*.json'
+      - 'Dockerfile'
+      - '.github/workflows/app-delivery.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - 'package*.json'
       - 'Dockerfile'
       - '.github/workflows/app-delivery.yml'
 
@@ -18,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-push:
+  build-and-scan:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -27,35 +36,65 @@ jobs:
           persist-credentials: false
 
       - name: Calculate build timestamp
-        id: meta
+        id: meta-time
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514310bdc6ee41752e3bb1c6a7d658e96115 # v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5.6.1
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/search-api
+          tags: |
+            type=sha,prefix=,format=long
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta-time.outputs.built_at }}
+
+      # 1. Construir localmente con 'load: true' para que Trivy escanee ANTES del push
+      - name: Build local image for scanning
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: .
+          load: true
+          tags: search-api:local-test
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILT_AT=${{ steps.meta-time.outputs.built_at }}
+
+      # 2. Escaneo de vulnerabilidades local
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          image-ref: search-api:local-test
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # 3. Autenticación en GHCR (solo en push a main)
       - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push search-api
+      # 4. Push a GHCR SOLO SI Trivy pasó y NO es pull_request
+      - name: Push image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/search-api:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            COMMIT_SHA=${{ github.sha }}
-            BUILT_AT=${{ steps.meta.outputs.built_at }}
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
-        with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/search-api:${{ github.sha }}
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+            GIT_SHA=${{ github.sha }}
+            BUILT_AT=${{ steps.meta-time.outputs.built_at }}

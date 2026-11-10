@@ -1,5 +1,5 @@
 # Production is deployed manually (repo is private: environments can't require
-# reviewers). See docs/adr/0002. DEV-05.
+# reviewers). See docs/adr/0003. DEV-05.
 name: Deploy to Production
 
 on:
@@ -61,8 +61,17 @@ jobs:
         run: |
           cd deploy/overlays/prod
           kustomize edit set image "ghcr.io/leviuuuwwu/search-api=$IMAGE"
+          
+          # 1. Eliminar el Job anterior para evitar error de inmutabilidad (Punto 8)
+          kubectl delete job db-migration -n search-prod --ignore-not-found=true
+          
+          # 2. Aplicar manifiestos
           kubectl apply -k .
-          kubectl wait --for=condition=complete --timeout=120s job/db-migrate -n search-prod
+          
+          # 3. Esperar que las migraciones terminen exitosamente (Punto 7: db-migration)
+          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-prod
+          
+          # 4. Validar rollouts
           kubectl rollout status deployment/search-api -n search-prod --timeout=120s
           kubectl rollout status deployment/search-indexer -n search-prod --timeout=120s
 

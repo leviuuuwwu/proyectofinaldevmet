@@ -38,7 +38,16 @@ jobs:
         run: |
           cd deploy/overlays/dev
           kustomize edit set image "ghcr.io/leviuuuwwu/search-api=ghcr.io/${{ github.repository_owner }}/search-api:${IMAGE_SHA}"
+          
+          # 1. Eliminar el Job anterior para evitar error de inmutabilidad en k8s (Punto 8)
+          kubectl delete job db-migration -n search-dev --ignore-not-found=true
+          
+          # 2. Aplicar manifiestos
           kubectl apply -k .
-          kubectl wait --for=condition=complete --timeout=120s job/db-migrate -n search-dev
+          
+          # 3. Esperar a que el Job de migraciones complete ANTES de validar la app (Punto 7: db-migration)
+          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-dev
+          
+          # 4. Verificar rollout de deployments
           kubectl rollout status deployment/search-api -n search-dev --timeout=120s
           kubectl rollout status deployment/search-indexer -n search-dev --timeout=120s
