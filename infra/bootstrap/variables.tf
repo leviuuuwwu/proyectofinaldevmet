@@ -55,3 +55,9 @@ variable "app_display_name" {
   description = "Nombre de la App Registration usada por GitHub Actions"
   default     = "search-engine-devmet-github-actions"
 }
+
+variable "terraform_apply_environment" {
+  type        = string
+  description = "Nombre del Environment de GitHub que usa el job de apply (.github/workflows/terraform-apply.yml). GitHub emite el subject OIDC como repo:ORG/REPO:environment:<este valor> cuando el job especifica \"environment:\"."
+  default     = "terraform-prod"
+}
