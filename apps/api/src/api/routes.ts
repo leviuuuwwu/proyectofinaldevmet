@@ -1,9 +1,12 @@
-// Contract routes. Auth and request validation are real; handlers are stubs (501)
-// until the business logic is implemented.
+// Contract routes (docs/contracts/openapi.yaml). Routes without business logic yet
+// answer 501 problem+json.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requireRole } from "../shared/auth.ts";
 import type { AuthToken } from "../shared/config.ts";
+import type { Pool } from "../shared/db.ts";
 import { sendProblem } from "../shared/problem.ts";
+import { catalogHandlers, type DocumentInput } from "./catalog.ts";
+import { indexingHandlers } from "./indexing.ts";
 import {
 	documentIdParams,
 	documentInput,
@@ -11,6 +14,14 @@ import {
 	jobIdParams,
 	searchQuery,
 } from "./schemas.ts";
+import { type SearchParams, searchHandler } from "./search.ts";
+
+export interface RouteDeps {
+	pool: Pool;
+	tokens: readonly AuthToken[];
+}
+
+type IdParams = { Params: { id: string } };
 
 const notImplemented = async (_request: FastifyRequest, reply: FastifyReply) =>
 	sendProblem(reply, 501, {
@@ -20,23 +31,25 @@ const notImplemented = async (_request: FastifyRequest, reply: FastifyReply) =>
 
 export function registerContractRoutes(
 	app: FastifyInstance,
-	tokens: readonly AuthToken[],
+	deps: RouteDeps,
 ): void {
-	const reader = { onRequest: requireRole("reader", tokens) };
-	const editor = { onRequest: requireRole("editor", tokens) };
-	const admin = { onRequest: requireRole("admin", tokens) };
+	const reader = { onRequest: requireRole("reader", deps.tokens) };
+	const editor = { onRequest: requireRole("editor", deps.tokens) };
+	const admin = { onRequest: requireRole("admin", deps.tokens) };
+	const catalog = catalogHandlers(deps.pool);
+	const indexing = indexingHandlers(deps.pool);
 
-	app.post(
+	app.post<{ Body: DocumentInput }>(
 		"/documents",
 		{ ...editor, schema: { body: documentInput } },
-		notImplemented,
+		catalog.create,
 	);
-	app.get(
+	app.get<IdParams>(
 		"/documents/:id",
 		{ ...editor, schema: { params: documentIdParams } },
-		notImplemented,
+		catalog.get,
 	);
-	app.put(
+	app.put<IdParams & { Body: DocumentInput; Headers: { "if-match": string } }>(
 		"/documents/:id",
 		{
 			...editor,
@@ -46,24 +59,24 @@ export function registerContractRoutes(
 				body: documentInput,
 			},
 		},
-		notImplemented,
+		catalog.update,
 	);
-	app.post(
+	app.post<IdParams>(
 		"/documents/:id/unpublish",
 		{ ...editor, schema: { params: documentIdParams } },
-		notImplemented,
+		catalog.unpublish,
 	);
-	app.get(
+	app.get<IdParams>(
 		"/documents/:id/index-status",
 		{ ...editor, schema: { params: documentIdParams } },
-		notImplemented,
+		indexing.documentStatus,
 	);
-	app.get(
+	app.get<{ Querystring: SearchParams }>(
 		"/search",
 		{ ...reader, schema: { querystring: searchQuery } },
-		notImplemented,
+		searchHandler(deps.pool),
 	);
-	app.get("/index/status", editor, notImplemented);
+	app.get("/index/status", editor, indexing.globalStatus);
 	app.post("/admin/reindex", admin, notImplemented);
 	app.get(
 		"/admin/reindex/:jobId",

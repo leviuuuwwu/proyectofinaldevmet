@@ -25,8 +25,26 @@ export function buildApi(deps: {
 	});
 
 	registerOpsRoutes(app, { pool: deps.pool, registry, exposeVersion: true });
-	registerContractRoutes(app, deps.config.authTokens);
+	registerContractRoutes(app, {
+		pool: deps.pool,
+		tokens: deps.config.authTokens,
+	});
 	return app;
+}
+
+// catalog_writes_total is derived from the response so validation and auth
+// rejections are counted too.
+const WRITE_OPS: Record<string, string> = {
+	"POST /documents": "create",
+	"PUT /documents/:id": "update",
+	"POST /documents/:id/unpublish": "unpublish",
+};
+
+function resultOf(status: number): string {
+	if (status === 409) return "conflict";
+	if (status >= 500) return "server_error";
+	if (status >= 400) return "client_error";
+	return "ok";
 }
 
 function observeRequest(
@@ -49,4 +67,6 @@ function observeRequest(
 			status >= 500 ? "server_error" : status >= 400 ? "client_error" : "ok";
 		metrics.searchRequests.inc({ result });
 	}
+	const op = WRITE_OPS[`${method} ${route}`];
+	if (op) metrics.catalogWrites.inc({ op, result: resultOf(status) });
 }
