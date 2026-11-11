@@ -70,6 +70,7 @@ respuesta y el texto de búsqueda completo.
 | `config.invalid` | todos | fatal | Configuración inválida al arrancar (solo nombres de variables) |
 | `db.connection_lost` | api, indexer | warn | Se cayó una conexión inactiva a PostgreSQL (p. ej. reinicio, `57P01`); el proceso sigue y se reconecta en la siguiente consulta |
 | `process.stopping` | api, indexer | info | Señal de terminación recibida (`SIGTERM`/`SIGINT`) |
+| `migration.waiting_db` | migrate | warn | PostgreSQL aún no acepta conexiones; reintenta cada 2 s hasta 90 s (`attempt`) |
 | `migration.applied` | migrate | info | Migración aplicada (`migration`, `durationMs`) |
 | `migration.finished` | migrate | info | Esquema al día (`applied` = cantidad aplicada) |
 | `migration.failed` | migrate | error | Migración revertida; el proceso termina con código 1 |
