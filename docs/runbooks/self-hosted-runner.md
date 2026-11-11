@@ -65,26 +65,50 @@ sudo -u gh-runner kubectl auth can-i get secrets -n monitoring
 1. Como `gh-runner`, descargar `actions-runner-linux-x64-<versión>.tar.gz` del release
    oficial de `actions/runner` con **al menos 14 días** de publicado, y verificar su
    `sha256` contra el publicado en las notas del release **antes** de descomprimir.
-2. Leví genera el token de registro **en ese momento** (vence en 1 hora) y lo pasa por
+2. **Confirmar que es la VM del proyecto antes de registrar.** El hostname no basta (otra
+   VM creada con el mismo Terraform también se llama `vm-k3s-node`): la IP pública debe
+   coincidir con `terraform output public_ip` (`20.109.191.166` al escribir esto).
+   ```sh
+   curl -s https://ifconfig.me
+   ```
+3. Leví genera el token de registro **en ese momento** (vence en 1 hora) y lo pasa por
    privado, nunca en el repo ni en un PR:
    `gh api -X POST repos/leviuuuwwu/proyectofinaldevmet/actions/runners/registration-token --jq .token`
-3. Registrar con las labels que usan los workflows:
+4. Registrar con las labels que usan los workflows:
    ```sh
    ./config.sh --url https://github.com/leviuuuwwu/proyectofinaldevmet --token <TOKEN> \
      --name vm-k3s-node --labels k3s-cluster --unattended
    ```
-4. Instalar como servicio que corre como `gh-runner` (no root):
+5. **Definir `KUBECONFIG` para los jobs.** El `kubectl` de K3s ignora `~/.kube/config` y usa
+   `/etc/rancher/k3s/k3s.yaml` (que `gh-runner` no puede leer) si `KUBECONFIG` no está
+   definido. El runner carga `actions-runner/.env` en cada job:
+   ```sh
+   echo "KUBECONFIG=/home/gh-runner/.kube/config" >> /home/gh-runner/actions-runner/.env
+   ```
+6. Instalar como servicio que corre como `gh-runner` (no root):
    `sudo ./svc.sh install gh-runner && sudo ./svc.sh start`
-5. Comprobar en GitHub (Settings → Actions → Runners) que `vm-k3s-node` aparece `Idle` con
-   las labels `self-hosted, linux, x64, k3s-cluster`.
+7. Comprobar en GitHub (Settings → Actions → Runners) que `vm-k3s-node` aparece `Idle` con
+   las labels `self-hosted, linux, x64, k3s-cluster`, y que es **el único** runner registrado.
 
 `kubectl` ya viene con K3s; los workflows usan el kustomize integrado (`kubectl apply -k`).
+El paso "Diagnose on failure" de los workflows imprime pods, eventos y logs si un despliegue
+falla (`deploy/scripts/diagnose.sh`); sirve también a mano.
 
 ## 3. Secrets de los environments
 
 `development` y `production` necesitan `PG_PASSWORD` y `AUTH_TOKENS_JSON` (valores
 distintos por ambiente; contraseña con `openssl rand -base64 24`). `production` además
 necesita `KUBE_PROD_TOKEN` (paso 1). El secret `KUBECONFIG` ya no se usa.
+
+`DATABASE_URL` lo arma el workflow con la contraseña codificada para URL
+(`deploy/scripts/database-url.sh`): las contraseñas base64 traen `/ + =`.
+
+**Cambiar `PG_PASSWORD` no cambia la contraseña de una base ya creada.** La imagen de
+PostgreSQL solo usa `POSTGRES_PASSWORD` al inicializar el volumen. Si se rota con datos que
+hay que conservar, primero se cambia dentro de la base
+(`ALTER USER search PASSWORD '…'` vía `kubectl exec` en `postgres-0`) y luego el secret; si
+los datos de ese ambiente se pueden regenerar (dev), se borra el StatefulSet y su PVC
+(`data-postgres-0`) y el siguiente despliegue la crea con el valor nuevo.
 
 ## Rotación y baja
 
