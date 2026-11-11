@@ -6,7 +6,7 @@
 		"test": "npm test --workspaces --if-present",
 		"check": "biome check . && tsc -p apps/api --noEmit && tsc -p tests && tsc -p tools/datagen",
 		"build": "npm run build -w apps/api",
-		"test:acceptance": "node --test \"tests/acceptance/**/*.test.ts\"",
+		"test:acceptance": "node --test --test-concurrency=1 \"tests/acceptance/**/*.test.ts\"",
 		"migrate": "node --env-file-if-exists=.env apps/api/src/migrate.ts",
 		"test:load": "node --test \"tests/load/**/*.test.ts\"",
 		"dev:api": "node --env-file-if-exists=.env --watch apps/api/src/api.ts",
