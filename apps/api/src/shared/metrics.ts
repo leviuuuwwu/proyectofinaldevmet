@@ -62,6 +62,54 @@ export function createApiMetrics(registry: Registry) {
 	};
 }
 
+// Index backlog read from the outbox when Prometheus scrapes, exported by the API so
+// it keeps growing while the indexer is down (the indexer's own gauges disappear with
+// it). prom-client collects metrics concurrently, so both gauges await the same read.
+export function createBacklogMetrics(
+	registry: Registry,
+	read: () => Promise<{
+		pending: number;
+		failed: number;
+		oldestAgeSeconds: number | null;
+	}>,
+): void {
+	let last: { at: number; value: ReturnType<typeof read> } | null = null;
+	const snapshot = () => {
+		if (!last || Date.now() - last.at > 1000) {
+			last = { at: Date.now(), value: read() };
+		}
+		return last.value;
+	};
+	new Gauge({
+		name: "index_backlog_events",
+		help: "Unprocessed outbox events by state, read by the API",
+		labelNames: ["state"],
+		registers: [registry],
+		async collect() {
+			try {
+				const backlog = await snapshot();
+				this.set({ state: "pending" }, backlog.pending);
+				this.set({ state: "failed" }, backlog.failed);
+			} catch {
+				// Database unreachable: drop the series instead of reporting stale values.
+				this.reset();
+			}
+		},
+	});
+	new Gauge({
+		name: "index_backlog_oldest_age_seconds",
+		help: "Age of the oldest unprocessed outbox event (0 when none), read by the API",
+		registers: [registry],
+		async collect() {
+			try {
+				this.set((await snapshot()).oldestAgeSeconds ?? 0);
+			} catch {
+				this.reset();
+			}
+		},
+	});
+}
+
 export function createIndexerMetrics(registry: Registry) {
 	const registers = [registry];
 	return {
