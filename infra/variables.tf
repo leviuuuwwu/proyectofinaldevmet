@@ -41,11 +41,15 @@ variable "ubuntu_image_version" {
   type        = string
   description = <<-EOT
     Versión fija (NUNCA "latest") de la imagen Canonical:ubuntu-24_04-lts:server.
-    Actualizarla antes de aplicar consultando la más reciente con:
-      az vm image list --publisher Canonical --offer ubuntu-24_04-lts --sku server --all \
-        --query "[-1].version" -o tsv
+    Elegir una versión de la lista de la región y confirmar que se puede usar:
+      az vm image list --publisher Canonical --offer ubuntu-24_04-lts --sku server \
+        --location westus2 --all --query "[].version" -o tsv
+      az vm image show --location westus2 \
+        --urn Canonical:ubuntu-24_04-lts:server:<version>
+    Una versión recién publicada puede aparecer en la lista y dar NotFound en
+    "show" mientras termina de replicarse; en ese caso usar la anterior.
   EOT
-  default     = "24.04.202611050"
+  default     = "24.04.202610250"
 
   validation {
     condition     = var.ubuntu_image_version != "latest"
