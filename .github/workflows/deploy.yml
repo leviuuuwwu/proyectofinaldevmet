@@ -72,6 +72,11 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
 
+      # The runner is persistent: kubectl's discovery cache from an earlier run does not
+      # know CRDs installed later (PodMonitor -> "no matches for kind"). Fresh per job.
+      - name: Use a per-job kubectl cache
+        run: echo "KUBECACHEDIR=$RUNNER_TEMP/kube-cache" >> "$GITHUB_ENV"
+
       - name: Deploy to search-dev
         env:
           NS: search-dev
