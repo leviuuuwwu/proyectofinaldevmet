@@ -75,6 +75,7 @@ jobs:
         working-directory: infra
         env:
           TF_VAR_admin_ip: ${{ vars.TF_VAR_ADMIN_IP }}
+          TF_VAR_extra_admin_ips: ${{ vars.TF_VAR_EXTRA_ADMIN_IPS || '[]' }}
           TF_VAR_admin_ssh_public_key: ${{ secrets.TF_VAR_ADMIN_SSH_PUBLIC_KEY }}
           TF_VAR_k3s_install_script_sha256: ${{ vars.TF_VAR_K3S_INSTALL_SCRIPT_SHA256 }}
         # Sin pipefail, el código de salida sería el de tee y un plan fallido
