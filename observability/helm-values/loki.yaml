@@ -30,12 +30,6 @@ singleBinary:
       memory: 512Mi
   persistence:
     enabled: false
-  extraVolumes:
-    - name: storage
-      emptyDir: {}
-  extraVolumeMounts:
-    - name: storage
-      mountPath: /var/loki
 
 backend:
   replicas: 0
