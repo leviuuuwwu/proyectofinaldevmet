@@ -41,8 +41,8 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 | Dockerfile multi-stage, no root, base por digest | ✅ | `Dockerfile` |
 | Escaneo de la imagen (Trivy, `exit-code 1`) | ✅ | `.github/workflows/app-delivery.yml`; enlace a una corrida verde en `docs/evidencia/ci/README.md` |
 | Pruebas y validaciones en PR | ✅ | `.github/workflows/ci.yml`, `terraform-pr.yml`; enlazar un PR con los checks |
-| Protección de rama que bloquea | ⏳ | `gh api repos/leviuuuwwu/proyectofinaldevmet/branches/main/protection \| tee docs/evidencia/ci/proteccion-main.json` + un PR bloqueado por un check en rojo (captura) |
-| Trazabilidad commit → imagen | ⏳ | `gh run list --workflow app-delivery.yml --branch main --limit 5 \| tee docs/evidencia/ci/builds.txt` y la página del paquete en GHCR (etiquetas OCI `revision`, `created`) |
+| Protección de rama que bloquea | ✅ `ci/proteccion-main.json` (`enforce_admins`) | `gh api repos/leviuuuwwu/proyectofinaldevmet/branches/main/protection \| tee docs/evidencia/ci/proteccion-main.json` + un PR bloqueado por un check en rojo (captura) |
+| Trazabilidad commit → imagen | ✅ `ci/builds.txt` + `entrega/versiones.txt` | `gh run list --workflow app-delivery.yml --branch main --limit 5 \| tee docs/evidencia/ci/builds.txt` y la página del paquete en GHCR (etiquetas OCI `revision`, `created`) |
 
 ### Infraestructura con Terraform (20) · responsable: Daniela
 
@@ -52,16 +52,16 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 | Verificación de la plataforma | ✅ | `docs/runbooks/costos-y-reconstruccion.md` §7 |
 | Plan revisable en un PR | ⏳ | Enlace a un PR con el comentario del `terraform plan` |
 | Apply controlado | ✅ | `terraform-apply.yml` (manual + `PROD_APPROVERS`), ADR 0007; enlace a la corrida |
-| K3s automatizado y nodo Ready | ⏳ | `kubectl get nodes -o wide \| tee docs/evidencia/infra/nodos.txt` |
+| K3s automatizado y nodo Ready | ✅ `infra/nodos.txt` | `kubectl get nodes -o wide \| tee docs/evidencia/infra/nodos.txt` |
 
 ### Kubernetes y operación (20) · responsable: Ricardo
 
 | Evidencia | Estado | Dónde / cómo |
 |---|---|---|
-| Workloads desde imágenes trazables | ⏳ | `kubectl -n search-dev get deploy,sts,job -o wide \| tee docs/evidencia/k8s/workloads-dev.txt` |
+| Workloads desde imágenes trazables | ✅ `k8s/workloads-dev.txt`, `ci/builds.txt` | `kubectl -n search-dev get deploy,sts,job -o wide \| tee docs/evidencia/k8s/workloads-dev.txt` |
 | Configuración y secretos fuera de la imagen | ✅/⏳ | Overlays (`configMapGenerator`), `deploy.yml` (Secrets desde environments); `kubectl -n search-dev get configmap,secret -o name \| tee docs/evidencia/k8s/config.txt` |
 | Qué protege el Secret (4.2) | ✅ | K3s con `--secrets-encryption` (runbook de infra §7); RBAC: el runner no lee Secrets fuera de su namespace |
-| Red: Services, Ingress con TLS, puertos | ⏳ | `kubectl -n search-prod get svc,ingress \| tee docs/evidencia/k8s/red.txt`; `curl -sv https://$HOST/healthz 2>&1 \| grep -E 'subject\|issuer\|HTTP/' \| tee docs/evidencia/k8s/tls.txt`; NSG en el runbook de infra |
+| Red: Services, Ingress con TLS, puertos | ✅ `k8s/red-prod.txt`, `k8s/tls.txt` | `kubectl -n search-prod get svc,ingress \| tee docs/evidencia/k8s/red.txt`; `curl -sv https://$HOST/healthz 2>&1 \| grep -E 'subject\|issuer\|HTTP/' \| tee docs/evidencia/k8s/tls.txt`; NSG en el runbook de infra |
 | NetworkPolicies (mínimo privilegio de red) | ✅ | `deploy/base/network-policy.yaml` (default-deny) |
 | Persistencia ante reinicio (COM-03) | ✅ [`k8s/persistencia.txt`](k8s/persistencia.txt) | Crear documento → `kubectl -n search-dev delete pod postgres-0` → `GET /documents/{id}` sigue: guardar la secuencia en `docs/evidencia/k8s/persistencia.txt` |
 | Probes y su efecto | ✅/⏳ | Manifiestos de `deploy/base`; demo: detener PostgreSQL → api `0/1 Ready` (`kubectl get pods`, `get endpoints`) sin reinicios |
@@ -73,7 +73,7 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 | Evidencia | Estado | Dónde / cómo |
 |---|---|---|
 | Promoción controlada dev → prod | ✅/⏳ | `deploy.yml` (automático), `deploy-prod.yml` (manual + aprobadores), ADR 0003; enlaces a las corridas |
-| Versión identificable por ambiente | ⏳ | `curl -fsS $DEV/version; curl -fsS https://$HOST/version \| tee docs/evidencia/entrega/versiones.txt` |
+| Versión identificable por ambiente | ✅ `entrega/versiones.txt`, `entrega/smoke-prod.txt` | `curl -fsS $DEV/version; curl -fsS https://$HOST/version \| tee docs/evidencia/entrega/versiones.txt` |
 | Rollback demostrado y verificado | ✅ §2.5 [`entrega/rollback.txt`](entrega/rollback.txt); ⏳ §2.1 | Runbook §2.1 (pipeline) y §2.5 (demo): guardar comandos y salidas en `docs/evidencia/entrega/rollback.txt` |
 | Tratamiento de cambios de datos | ✅ | Migraciones expand/contract (`apps/api/migrations`), runbook §2.3 |
 
@@ -91,11 +91,11 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 | Criterio | Estado | Dónde / cómo |
 |---|---|---|
 | Preguntas, SLIs, SLOs, presupuesto (20) | ✅/⏳ | `docs/metricas.md` §1–4; ⏳ valores reales del SLI en la ventana de prueba (consultas §3) → `docs/evidencia/metricas/sli.txt` |
-| Logging y correlación (15) | ⏳ | Consulta en Loki que sigue un `correlationId` y un `linkedTraceId` (metricas §6) → captura y texto en `docs/evidencia/metricas/logs.md` |
+| Logging y correlación (15) | ✅ `met07/5-loki-*.png` (`traceId` + `linkedTraceId`; corte de `index.applied` durante la falla) | Consulta en Loki que sigue un `correlationId` y un `linkedTraceId` (metricas §6) → captura y texto en `docs/evidencia/metricas/logs.md` |
 | Métricas e interpretación (20) | ⏳ | Consultas PromQL de metricas §6 con su resultado e interpretación → `docs/evidencia/metricas/promql.md` |
-| Trazas con OpenTelemetry (15) | ⏳ | Una traza `catalog.write` y su `indexer.process` enlazado en Tempo, con los tiempos explicados → `docs/evidencia/metricas/trazas.md` |
-| Dashboards y alertas (15) | ✅/⏳ | `observability/dashboards/*.json`, `observability/rules/` (`npm run test:rules`); ⏳ alerta disparada y resuelta (capturas con hora) |
-| Investigación de incidente (15) | ⏳ | `docs/experimento-met07.md` completado con los JSON de `docs/evidencia/met07/` |
+| Trazas con OpenTelemetry (15) | ✅/⏳ `met07/6-tempo-indexer-process.png`; ⏳ captura del link al trace de la API | Una traza `catalog.write` y su `indexer.process` enlazado en Tempo, con los tiempos explicados → `docs/evidencia/metricas/trazas.md` |
+| Dashboards y alertas (15) | ✅ `met07/1-…`–`4-…` (alerta Pending→Firing→resuelta con hora) | `observability/dashboards/*.json`, `observability/rules/` (`npm run test:rules`); ⏳ alerta disparada y resuelta (capturas con hora) |
+| Investigación de incidente (15) | ✅ `docs/experimento-met07.md` con datos reales | `docs/experimento-met07.md` completado con los JSON de `docs/evidencia/met07/` |
 
 ## Entregables generales
 

@@ -1,0 +1,4 @@
+configmap/app-config-2756mbch76
+configmap/kube-root-ca.crt
+secret/app-secrets
+secret/postgres-credentials

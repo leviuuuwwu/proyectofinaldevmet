@@ -1,0 +1,4 @@
+dev:
+{"version":"1.0.0","commit":"f2dbf8ff769a7ff2091b0dfa3c3e171af1e35d07","builtAt":"2026-11-11T07:09:57Z"}ghcr.io/leviuuuwwu/search-api:f2dbf8ff769a7ff2091b0dfa3c3e171af1e35d07
+prod:
+{"version":"1.0.0","commit":"f2dbf8ff769a7ff2091b0dfa3c3e171af1e35d07","builtAt":"2026-11-11T07:09:57Z"}ghcr.io/leviuuuwwu/search-api:f2dbf8ff769a7ff2091b0dfa3c3e171af1e35d07

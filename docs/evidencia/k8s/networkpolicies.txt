@@ -1,0 +1,4 @@
+NAME                      POD-SELECTOR                                      AGE
+app-network-policy        app in (db-migration,search-api,search-indexer)   69m
+default-deny-all          <none>                                            69m
+postgres-network-policy   app=postgres                                      69m

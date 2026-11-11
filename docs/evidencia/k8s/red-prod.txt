@@ -1,0 +1,13 @@
+NAME                                  READY   STATUS      RESTARTS   AGE
+pod/db-migration-9kjgr                0/1     Completed   0          61s
+pod/postgres-0                        1/1     Running     0          6m42s
+pod/search-api-dfbfd6cf6-6q6kj        1/1     Running     0          6m43s
+pod/search-api-dfbfd6cf6-klv77        1/1     Running     0          6m43s
+pod/search-indexer-79c7bdfcb8-h8dhp   1/1     Running     0          6m43s
+
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+service/postgres     ClusterIP   None           <none>        5432/TCP   6m43s
+service/search-api   ClusterIP   10.43.196.63   <none>        8080/TCP   6m43s
+
+NAME                                           CLASS   HOSTS                                             ADDRESS       PORTS     AGE
+ingress.networking.k8s.io/search-api-ingress   nginx   search-engine-devmet.westus2.cloudapp.azure.com   10.43.5.188   80, 443   6m43s

@@ -1,0 +1,6 @@
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                                                                   SELECTOR
+deployment.apps/search-api       2/2     2            2           69m   api          ghcr.io/leviuuuwwu/search-api:d8319cdd709f491dd9ddd0fbca84f1afcd4237ce   app=search-api
+deployment.apps/search-indexer   1/1     1            1           69m   indexer      ghcr.io/leviuuuwwu/search-api:d8319cdd709f491dd9ddd0fbca84f1afcd4237ce   app=search-indexer
+
+NAME                        READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/postgres   1/1     69m   postgres     postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f

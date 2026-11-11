@@ -1,0 +1,2 @@
+completed	success	Deploy to Production	Deploy to Production	main	workflow_dispatch	42977859207	20s	2026-11-11T07:18:56Z
+completed	failure	feat(database): deploy postgres statefulset in-cluster with ordered w…	Deploy to Production	feat/postgres-in-cluster	push	42902714539	0s	2026-11-10T21:12:12Z

@@ -1,0 +1,13 @@
+*  subject: CN=search-engine-devmet.westus2.cloudapp.azure.com
+*  expire date: Feb  9 06:14:56 2027 GMT
+*  issuer: C=US; O=Let's Encrypt; CN=YR1
+* using HTTP/2
+* [HTTP/2] [1] OPENED stream for https://search-engine-devmet.westus2.cloudapp.azure.com/healthz
+* [HTTP/2] [1] [:method: GET]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: search-engine-devmet.westus2.cloudapp.azure.com]
+* [HTTP/2] [1] [:path: /healthz]
+* [HTTP/2] [1] [user-agent: curl/8.7.1]
+* [HTTP/2] [1] [accept: */*]
+> GET /healthz HTTP/2
+< HTTP/2 200 
