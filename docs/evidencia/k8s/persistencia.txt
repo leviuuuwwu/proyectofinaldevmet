@@ -1,0 +1,8 @@
+f086c5ab-13f1-4639-a58f-79af5b62671c
+{"total":1,"page":1,"pageSize":20,"items":[{"id":"f086c5ab-13f1-4639-a58f-79af5b62671c","title":"Prueba de persistencia","description":"","tags":[],"category":"operaciones","date":"2026-11-11T00:00:00.000Z","rank":0.6079271}]}NAME         READY   STATUS    RESTARTS   AGE   IP           NODE          NOMINATED NODE   READINESS GATES
+postgres-0   1/1     Running   0          42s   10.42.0.77   vm-k3s-node   <none>           <none>
+pod "postgres-0" deleted from search-dev namespace
+pod/postgres-0 condition met
+NAME         READY   STATUS    RESTARTS   AGE   IP           NODE          NOMINATED NODE   READINESS GATES
+postgres-0   1/1     Running   0          6s    10.42.0.78   vm-k3s-node   <none>           <none>
+{"id":"f086c5ab-13f1-4639-a58f-79af5b62671c","title":"Prueba de persistencia","description":"","tags":[],"category":"operaciones","date":"2026-11-11T00:00:00.000Z","status":"published","version":1,"createdAt":"2026-11-11T06:59:55.851Z","updatedAt":"2026-11-11T06:59:55.851Z"}{"total":1,"page":1,"pageSize":20,"items":[{"id":"f086c5ab-13f1-4639-a58f-79af5b62671c","title":"Prueba de persistencia","description":"","tags":[],"category":"operaciones","date":"2026-11-11T00:00:00.000Z","rank":0.6079271}]}

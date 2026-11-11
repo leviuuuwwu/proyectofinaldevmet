@@ -28,10 +28,10 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 |---|---|---|
 | Diagrama real y decisiones | ✅ | `docs/arquitectura.md`, `docs/adr/0001`–`0007`, `docs/semantica-indexacion.md` |
 | Contrato de la API | ✅ | `docs/contracts/openapi.yaml` |
-| Datos ficticios deterministas (ESC4-10, P4-1) | ⏳ | `BASE_URL=$DEV EDITOR_TOKEN=… npm run -s start -w tools/datagen \| tee docs/evidencia/app/datagen.json` |
-| Pruebas de aceptación (COM-01/04/05) | ⏳ | `BASE_URL=$DEV npm run test:acceptance 2>&1 \| tee docs/evidencia/app/aceptacion.txt` |
-| Resultados esperados de búsqueda (P4-1, P4-4) | ⏳ | `BASE_URL=$DEV npm run test:golden 2>&1 \| tee docs/evidencia/app/golden.txt` |
-| Carga (5.8, P4-2, P4-5) | ⏳ | `BASE_URL=$DEV npm run test:load 2>&1 \| tee docs/evidencia/app/carga.txt` |
+| Datos ficticios deterministas (ESC4-10, P4-1) | ✅ | [`app/datagen.txt`](app/datagen.txt): 2000 creados, 50 actualizados, 50 despublicados, índice convergido |
+| Pruebas de aceptación (COM-01/04/05) | ✅ | [`app/aceptacion.txt`](app/aceptacion.txt): 145/145 contra `search-dev` |
+| Resultados esperados de búsqueda (P4-1, P4-4) | ✅ | [`app/golden.txt`](app/golden.txt): 87/87 |
+| Carga (5.8, P4-2, P4-5) | ✅ | [`app/carga.txt`](app/carga.txt): 4/4; búsqueda p95 178 ms a 138 req/s, reindex con carga sin errores |
 | Falla controlada (5.8) | ⏳ | `docs/experimento-met07.md` (ver MET-07) |
 
 ### Contenedores e integración continua (15) · responsable: Ricardo
@@ -63,9 +63,9 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 | Qué protege el Secret (4.2) | ✅ | K3s con `--secrets-encryption` (runbook de infra §7); RBAC: el runner no lee Secrets fuera de su namespace |
 | Red: Services, Ingress con TLS, puertos | ⏳ | `kubectl -n search-prod get svc,ingress \| tee docs/evidencia/k8s/red.txt`; `curl -sv https://$HOST/healthz 2>&1 \| grep -E 'subject\|issuer\|HTTP/' \| tee docs/evidencia/k8s/tls.txt`; NSG en el runbook de infra |
 | NetworkPolicies (mínimo privilegio de red) | ✅ | `deploy/base/network-policy.yaml` (default-deny) |
-| Persistencia ante reinicio (COM-03) | ⏳ | Crear documento → `kubectl -n search-dev delete pod postgres-0` → `GET /documents/{id}` sigue: guardar la secuencia en `docs/evidencia/k8s/persistencia.txt` |
+| Persistencia ante reinicio (COM-03) | ✅ [`k8s/persistencia.txt`](k8s/persistencia.txt) | Crear documento → `kubectl -n search-dev delete pod postgres-0` → `GET /documents/{id}` sigue: guardar la secuencia en `docs/evidencia/k8s/persistencia.txt` |
 | Probes y su efecto | ✅/⏳ | Manifiestos de `deploy/base`; demo: detener PostgreSQL → api `0/1 Ready` (`kubectl get pods`, `get endpoints`) sin reinicios |
-| Requests y límites justificados con consumo | ⏳ | Con carga: `kubectl top pods -n search-dev \| tee docs/evidencia/k8s/top.txt` y las consultas P4 de `docs/metricas.md`; anotar la justificación en `docs/evidencia/k8s/recursos.md` |
+| Requests y límites justificados con consumo | ✅ [`k8s/recursos.md`](k8s/recursos.md) | Con carga: `kubectl top pods -n search-dev \| tee docs/evidencia/k8s/top.txt` y las consultas P4 de `docs/metricas.md`; anotar la justificación en `docs/evidencia/k8s/recursos.md` |
 | Diagnóstico | ✅ | `docs/runbooks/rollback-and-diagnosis.md` §3 |
 
 ### Entrega continua y recuperación (20) · responsables: Ricardo, Leví
@@ -74,7 +74,7 @@ Estado: ✅ ya está en el repo · ⏳ hay que ejecutarlo en el clúster y guard
 |---|---|---|
 | Promoción controlada dev → prod | ✅/⏳ | `deploy.yml` (automático), `deploy-prod.yml` (manual + aprobadores), ADR 0003; enlaces a las corridas |
 | Versión identificable por ambiente | ⏳ | `curl -fsS $DEV/version; curl -fsS https://$HOST/version \| tee docs/evidencia/entrega/versiones.txt` |
-| Rollback demostrado y verificado | ⏳ | Runbook §2.1 (pipeline) y §2.5 (demo): guardar comandos y salidas en `docs/evidencia/entrega/rollback.txt` |
+| Rollback demostrado y verificado | ✅ §2.5 [`entrega/rollback.txt`](entrega/rollback.txt); ⏳ §2.1 | Runbook §2.1 (pipeline) y §2.5 (demo): guardar comandos y salidas en `docs/evidencia/entrega/rollback.txt` |
 | Tratamiento de cambios de datos | ✅ | Migraciones expand/contract (`apps/api/migrations`), runbook §2.3 |
 
 ### Reproducibilidad, seguridad y costos (10) · responsable: Daniela
