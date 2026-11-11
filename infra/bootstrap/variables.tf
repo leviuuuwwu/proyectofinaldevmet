@@ -56,12 +56,6 @@ variable "github_repo_id" {
   default     = "1445084285"
 }
 
-variable "github_branch" {
-  type        = string
-  description = "Rama habilitada para el federated credential (OIDC)"
-  default     = "main"
-}
-
 variable "app_display_name" {
   type        = string
   description = "Nombre de la App Registration usada por GitHub Actions"
