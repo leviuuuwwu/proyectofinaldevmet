@@ -55,9 +55,10 @@ resource "azurerm_linux_virtual_machine" "vm" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   # Standard_B2s (v1) no está disponible en westus2 para esta suscripción
-  # (SkuNotAvailable). B2ls_v2 tiene los mismos 2 vCPU / 4 GiB, cuota de la
-  # familia Bsv2 y solo restringe zonas de disponibilidad; esta VM no usa zona.
-  size                  = "Standard_B2ls_v2"
+  # (SkuNotAvailable). B2s_v2: 2 vCPU / 8 GiB, familia Bsv2, solo restringe zonas
+  # de disponibilidad (esta VM no usa zona). Con 4 GiB (B2ls_v2) la plataforma
+  # más la app agotaban la memoria y el disco se saturaba de lecturas.
+  size                  = "Standard_B2s_v2"
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.nic.id]
   # Azure lo activa al crear la VM; declararlo evita un cambio perpetuo en el plan.
