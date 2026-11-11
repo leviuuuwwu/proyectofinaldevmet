@@ -7,7 +7,7 @@ const stopTelemetry = startTelemetry(config);
 const { createPool } = await import("./shared/db.ts");
 const { buildApi } = await import("./api/server.ts");
 
-const pool = createPool(config);
+const pool = createPool(config, logger);
 const app = buildApi({ config, logger, pool });
 
 const shutdown = async (signal: string) => {
