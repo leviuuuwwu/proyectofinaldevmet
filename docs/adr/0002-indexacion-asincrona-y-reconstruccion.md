@@ -42,6 +42,11 @@ sin interrumpir las búsquedas (ESC4-07).
 - Durante una reconstrucción el indexer pausa: `index_outbox_pending` sube y luego baja. Es
   esperado y explicable en el análisis de MET-07.
 - Las búsquedas solo esperan el instante del renombrado (milisegundos).
+- **Nota (2026-11-11):** `/search` debe ejecutarse como **una sola sentencia en
+  `READ COMMITTED`** (total con `count(*) OVER ()`). Con `REPEATABLE READ`, PostgreSQL fija el
+  snapshot de la transacción antes de esperar el lock del renombrado; al despertar, la consulta
+  lee la tabla nueva con un snapshot anterior a sus filas y devuelve `200` vacío. Se reprodujo
+  (240 de 3,026 búsquedas vacías durante 30 reconstrucciones) y tras el cambio quedó en 0 de 4,323.
 
 ## Alternativas descartadas
 
