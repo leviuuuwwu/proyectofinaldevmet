@@ -1,0 +1,95 @@
+# Pruebas unitarias de las reglas: `npm run test:rules`. Cada caso fija series sintéticas
+# y comprueba cuándo una alerta está y no está activa (MET-06, Anexo II punto 7).
+rule_files:
+  - search.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # 1 req/s sana; a partir del minuto 31, 0.5 req/s con 5xx (33 % de error).
+  # Ventana corta en violación desde ~min 36, pero la de 1 h recién supera 14.4 % hacia el
+  # min 52; con `for: 2m` la alerta se activa después de eso. Al cortar los errores
+  # (min 91) la ventana de 5 min vuelve a 0 y la alerta se apaga.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod",route="/search",method="GET",status_class="2xx"}'
+        values: '0+60x150'
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod",route="/search",method="GET",status_class="5xx"}'
+        values: '0x30 30+30x60 1830x60'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: SearchErrorBudgetBurn
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: SearchErrorBudgetBurn
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: SearchErrorBudgetBurn
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: search-prod
+            exp_annotations:
+              summary: "Búsqueda consumiendo el presupuesto de error en search-prod"
+              description: "Más del 14.4 % de /search responde 5xx en 5 min y en 1 h (SLO 99 %/7 d)."
+              runbook: "docs/metricas.md#5-alertas"
+      - eval_time: 100m
+        alertname: SearchErrorBudgetBurn
+        exp_alerts: []
+
+  # Tráfico casi nulo (1 req/min) con todas las respuestas en error: no alerta.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{namespace="search-dev",route="/search",method="GET",status_class="5xx"}'
+        values: '0+1x90'
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: SearchErrorBudgetBurn
+        exp_alerts: []
+
+  # Indexer detenido en el min 10: el evento más antiguo envejece 60 s por minuto.
+  # Supera 60 s en el min 12, se activa tras 2 min y se apaga al recuperarse (min 30).
+  - interval: 1m
+    input_series:
+      - series: 'index_backlog_oldest_age_seconds{namespace="search-dev",pod="search-api-0"}'
+        values: '0x10 60+60x19 0x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: IndexFreshnessStale
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: IndexFreshnessStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-dev
+            exp_annotations:
+              summary: "Cambios del catálogo sin indexar hace más de 60 s en search-dev"
+              description: "El evento pendiente más antiguo del outbox supera 60 s: las búsquedas no reflejan escrituras confirmadas."
+              runbook: "docs/metricas.md#5-alertas"
+      - eval_time: 35m
+        alertname: IndexFreshnessStale
+        exp_alerts: []
+
+  # Un evento fallido durante 10 min: se activa a los 5 min y se apaga al resolverse.
+  - interval: 1m
+    input_series:
+      - series: 'index_backlog_events{namespace="search-dev",pod="search-api-0",state="failed"}'
+        values: '0x5 1x10 0x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: IndexEventsFailed
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: IndexEventsFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-dev
+            exp_annotations:
+              summary: "Eventos de indexación fallidos en search-dev"
+              description: "Hay eventos del outbox con error; revisar /index/status y los logs index.failed."
+              runbook: "docs/metricas.md#5-alertas"
+      - eval_time: 20m
+        alertname: IndexEventsFailed
+        exp_alerts: []

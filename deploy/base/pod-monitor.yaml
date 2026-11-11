@@ -1,0 +1,19 @@
+# Prometheus (kube-prometheus-stack) recolecta /metrics de la API (puerto http) y del
+# indexer (puerto metrics). La NetworkPolicy ya permite 8080/9090 desde "monitoring".
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: search-app
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [search-api, search-indexer]
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+    - port: metrics
+      path: /metrics
+      interval: 15s

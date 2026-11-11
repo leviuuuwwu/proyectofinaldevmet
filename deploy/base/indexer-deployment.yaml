@@ -26,6 +26,8 @@ spec:
             - containerPort: 9090
               name: metrics
           envFrom:
+            - configMapRef:
+                name: app-config
             - secretRef:
                 name: app-secrets
           resources:

@@ -8,10 +8,13 @@
 		"build": "npm run build -w apps/api",
 		"test:acceptance": "node --test --test-concurrency=1 \"tests/acceptance/**/*.test.ts\"",
 		"migrate": "node --env-file-if-exists=.env apps/api/src/migrate.ts",
+		"test:load": "node --test \"tests/load/**/*.test.ts\"",
 		"dev:api": "node --env-file-if-exists=.env --watch apps/api/src/api.ts",
 		"dev:indexer": "node --env-file-if-exists=.env --watch apps/api/src/indexer.ts",
 		"smoke": "node tests/smoke.ts",
-		"db:reset": "docker compose down -v && docker compose up -d --wait db && npm run migrate"
+		"db:reset": "docker compose down -v && docker compose up -d --wait db && npm run migrate",
+		"test:rules": "docker run --rm -v \"$PWD/observability/rules:/rules:ro\" --entrypoint promtool prom/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996 test rules /rules/search.rules.test.yaml",
+		"test:load": "node tests/load/search-load.ts"
 	},
 	"repository": {
 		"type": "git",
