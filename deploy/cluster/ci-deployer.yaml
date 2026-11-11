@@ -42,7 +42,7 @@ rules:
     resources: [networkpolicies, ingresses]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [monitoring.coreos.com]
-    resources: [servicemonitors]
+    resources: [servicemonitors, podmonitors]
     verbs: [get, list, watch, create, update, patch, delete]
 # El ClusterRole solo se concede dentro de un namespace (RoleBinding, no
 # ClusterRoleBinding): cada identidad tiene permisos en un solo ambiente.

@@ -62,7 +62,7 @@ requiere repetir el bootstrap. Con la VM destruida el costo queda en < 0.1 USD/m
 1. **Bootstrap** (solo si se perdió el storage account o la identidad OIDC):
    seguir `infra/bootstrap/README.md`.
 2. **Secrets y variables del repo** (Settings → Secrets and variables → Actions):
-   - Secrets: `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `TF_BACKEND_RESOURCE_GROUP_NAME`,
+   - Secrets: `ARM_CLIENT_ID`, `ARM_CLIENT_ID_PLAN`, `ARM_TENANT_ID`, `TF_BACKEND_RESOURCE_GROUP_NAME`,
      `TF_BACKEND_STORAGE_ACCOUNT_NAME`, `TF_BACKEND_CONTAINER_NAME`,
      `TF_VAR_ADMIN_SSH_PUBLIC_KEY`.
    - Variables: `ARM_SUBSCRIPTION_ID`, `TF_VAR_ADMIN_IP`,

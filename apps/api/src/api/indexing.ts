@@ -17,6 +17,33 @@ export function deriveIndexState(
 	return hasFailedEvent ? "failed" : "pending";
 }
 
+export interface OutboxBacklog {
+	pending: number;
+	failed: number;
+	oldestAgeSeconds: number | null;
+}
+
+// Unprocessed outbox events. Shared by GET /index/status and the API's backlog
+// gauges, which keep reporting while the indexer is down.
+export async function readOutboxBacklog(pool: Pool): Promise<OutboxBacklog> {
+	const { rows } = await pool.query<{
+		pending: number;
+		failed: number;
+		oldest: number | null;
+	}>(
+		`SELECT count(*) FILTER (WHERE last_error IS NULL)::int AS pending,
+		        count(*) FILTER (WHERE last_error IS NOT NULL)::int AS failed,
+		        EXTRACT(EPOCH FROM now() - min(created_at))::float8 AS oldest
+		 FROM outbox WHERE processed_at IS NULL`,
+	);
+	const row = rows[0];
+	return {
+		pending: row?.pending ?? 0,
+		failed: row?.failed ?? 0,
+		oldestAgeSeconds: row?.oldest ?? null,
+	};
+}
+
 interface StatusRow {
 	version: number;
 	updated_at: Date;
@@ -69,26 +96,16 @@ export function indexingHandlers(pool: Pool) {
 		},
 
 		async globalStatus() {
-			const [outbox, state] = await Promise.all([
-				pool.query<{
-					pending: number;
-					failed: number;
-					oldest: number | null;
-				}>(
-					`SELECT count(*) FILTER (WHERE last_error IS NULL)::int AS pending,
-					        count(*) FILTER (WHERE last_error IS NOT NULL)::int AS failed,
-					        EXTRACT(EPOCH FROM now() - min(created_at))::float8 AS oldest
-					 FROM outbox WHERE processed_at IS NULL`,
-				),
+			const [backlog, state] = await Promise.all([
+				readOutboxBacklog(pool),
 				pool.query<{ last: Date | null }>(
 					"SELECT max(indexed_at) AS last FROM index_state WHERE indexed_version > 0",
 				),
 			]);
-			const o = outbox.rows[0];
 			return {
-				pending: o?.pending ?? 0,
-				failed: o?.failed ?? 0,
-				oldestPendingAgeSeconds: o?.oldest ?? null,
+				pending: backlog.pending,
+				failed: backlog.failed,
+				oldestPendingAgeSeconds: backlog.oldestAgeSeconds,
 				lastIndexedAt: state.rows[0]?.last?.toISOString() ?? null,
 			};
 		},

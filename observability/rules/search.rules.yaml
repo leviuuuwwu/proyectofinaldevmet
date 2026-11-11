@@ -1,0 +1,63 @@
+# Reglas de Prometheus del Escenario 4. Fuente única: este archivo se prueba con
+# `npm run test:rules` (promtool) y se despliega envuelto en un PrometheusRule con
+# `observability/rules/prometheusrule.sh | kubectl apply -f -`.
+# Justificación de umbrales, ventanas y falsos positivos: docs/metricas.md §5.
+groups:
+  - name: search-slo
+    rules:
+      # SLI 1 — disponibilidad de /search: fracción de respuestas 5xx.
+      - record: search:errors:ratio_rate5m
+        expr: |
+          sum by (namespace) (rate(http_server_request_duration_seconds_count{route="/search",status_class="5xx"}[5m]))
+          /
+          sum by (namespace) (rate(http_server_request_duration_seconds_count{route="/search"}[5m]))
+      - record: search:errors:ratio_rate1h
+        expr: |
+          sum by (namespace) (rate(http_server_request_duration_seconds_count{route="/search",status_class="5xx"}[1h]))
+          /
+          sum by (namespace) (rate(http_server_request_duration_seconds_count{route="/search"}[1h]))
+      - record: search:requests:rate5m
+        expr: sum by (namespace) (rate(http_server_request_duration_seconds_count{route="/search"}[5m]))
+
+      # SLO 1 = 99 % de búsquedas sin error en 7 días (presupuesto 1 %). Quema rápida:
+      # 14.4x el presupuesto en 5 min Y en 1 h (multiventana: la ventana corta da
+      # rapidez, la larga evita disparos por un pico aislado). Con menos de 0.05 req/s
+      # (3 por minuto) no se evalúa: un solo error daría un ratio alto sin significado.
+      - alert: SearchErrorBudgetBurn
+        expr: |
+          search:errors:ratio_rate5m > (14.4 * 0.01)
+          and search:errors:ratio_rate1h > (14.4 * 0.01)
+          and search:requests:rate5m > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Búsqueda consumiendo el presupuesto de error en {{ $labels.namespace }}"
+          description: "Más del 14.4 % de /search responde 5xx en 5 min y en 1 h (SLO 99 %/7 d)."
+          runbook: "docs/metricas.md#5-alertas"
+
+  - name: search-indexing
+    rules:
+      # Síntoma operativo del escenario: un cambio confirmado lleva más de 60 s sin
+      # aplicarse al índice (indexer detenido, bloqueado o fallando). Lo calcula la
+      # API desde el outbox, así que sigue creciendo aunque el indexer esté caído.
+      - alert: IndexFreshnessStale
+        expr: max by (namespace) (index_backlog_oldest_age_seconds) > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cambios del catálogo sin indexar hace más de 60 s en {{ $labels.namespace }}"
+          description: "El evento pendiente más antiguo del outbox supera 60 s: las búsquedas no reflejan escrituras confirmadas."
+          runbook: "docs/metricas.md#5-alertas"
+
+      # Eventos que agotaron sus reintentos: no se resuelven solos (ESC4-09).
+      - alert: IndexEventsFailed
+        expr: max by (namespace) (index_backlog_events{state="failed"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Eventos de indexación fallidos en {{ $labels.namespace }}"
+          description: "Hay eventos del outbox con error; revisar /index/status y los logs index.failed."
+          runbook: "docs/metricas.md#5-alertas"
