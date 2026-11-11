@@ -68,6 +68,7 @@ respuesta y el texto de búsqueda completo.
 | `auth.rejected` | api | warn | 401 o 403 (motivo y rol, nunca el token) |
 | `request.failed` | api | error | Respuesta 5xx (incluye `correlationId`) |
 | `config.invalid` | todos | fatal | Configuración inválida al arrancar (solo nombres de variables) |
+| `db.connection_lost` | api, indexer | warn | Se cayó una conexión inactiva a PostgreSQL (p. ej. reinicio, `57P01`); el proceso sigue y se reconecta en la siguiente consulta |
 | `process.stopping` | api, indexer | info | Señal de terminación recibida (`SIGTERM`/`SIGINT`) |
 | `migration.applied` | migrate | info | Migración aplicada (`migration`, `durationMs`) |
 | `migration.finished` | migrate | info | Esquema al día (`applied` = cantidad aplicada) |
