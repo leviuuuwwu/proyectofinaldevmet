@@ -143,6 +143,14 @@ jobs:
             echo "::warning::CRD PodMonitor no instalado: Prometheus no recolecta la app (revisar kube-prometheus-stack, infra/scripts/platform-install.sh)"
           fi
 
+      # On failure, print state, events and logs (4.1 "Diagnóstico"). Read-only; runs
+      # before the temporary kubeconfig is removed.
+      - name: Diagnose on failure
+        if: failure()
+        env:
+          NS: search-prod
+        run: deploy/scripts/diagnose.sh "$NS"
+
       - name: Remove temporary prod kubeconfig
         if: always()
         run: rm -f "$RUNNER_TEMP/kubeconfig-prod"

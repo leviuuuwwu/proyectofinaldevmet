@@ -130,6 +130,14 @@ jobs:
             echo "::warning::CRD PodMonitor no instalado: Prometheus no recolecta la app (revisar kube-prometheus-stack, infra/scripts/platform-install.sh)"
           fi
 
+      # On failure, print state, events and logs (4.1 "Diagnóstico"): no SSH needed to
+      # see why a rollout or the migration Job did not finish. Read-only.
+      - name: Diagnose on failure
+        if: failure()
+        env:
+          NS: search-dev
+        run: deploy/scripts/diagnose.sh "$NS"
+
       - name: Summary
         env:
           IMAGE_SHA: ${{ needs.resolve.outputs.sha }}
