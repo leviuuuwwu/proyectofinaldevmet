@@ -31,7 +31,7 @@ identidad OIDC creada aquí. Referencia: DEV-07, sección 5.6.
 ## Nota sobre el scope del Service Principal
 
 `oidc.tf` crea el Resource Group `target_resource_group_name` (mismo nombre
-que `infra/variables.tf` espera, `rg-search-engine-devmet` por defecto) y
+que `infra/variables.tf` espera, `rg-search-devmet` por defecto) y
 asigna `Contributor` solo ahí — no a la suscripción. Esto implica que
 `infra/main.tf` debe dejar de **crear** ese Resource Group (`azurerm_resource_group.rg`)
 y pasar a referenciarlo como `data "azurerm_resource_group"`, porque ya existe

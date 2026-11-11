@@ -2,7 +2,8 @@
 // applies updates/unpublishes, then waits for the index to converge.
 //
 // Env: BASE_URL (default http://localhost:8080), EDITOR_TOKEN (required),
-//      SEED (default 42), DOCS (default 2000), CHANGES (default 100).
+//      SEED (default 42), DOCS (default 2000), CHANGES (default 100),
+//      WAIT_TIMEOUT_MS (default 120000), POLL_MS (default 1000).
 import { createRng, generateDocument, generateDocuments } from "./data.ts";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:8080";
@@ -11,7 +12,8 @@ const SEED = Number(process.env.SEED ?? 42);
 const DOCS = Number(process.env.DOCS ?? 2000);
 const CHANGES = Number(process.env.CHANGES ?? 100);
 const CONCURRENCY = 10;
-const WAIT_TIMEOUT_MS = 120_000;
+const WAIT_TIMEOUT_MS = Number(process.env.WAIT_TIMEOUT_MS ?? 120_000);
+const POLL_MS = Number(process.env.POLL_MS ?? 1000);
 
 if (!TOKEN) {
 	console.error("EDITOR_TOKEN is required (use the fictitious dev token).");
@@ -110,9 +112,9 @@ async function main() {
 		if (res.status === 200) {
 			pending = res.json.pending;
 			failed = res.json.failed;
-			if (pending === 0) break;
+			if (pending === 0 && failed === 0) break;
 		}
-		await new Promise((r) => setTimeout(r, 1000));
+		await new Promise((r) => setTimeout(r, POLL_MS));
 	}
 
 	console.log(

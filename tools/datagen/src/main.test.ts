@@ -11,9 +11,17 @@ interface Stored {
 	status: string;
 }
 
-function startFakeApi() {
+/** failedPolls: how many /index/status polls report failed=1 (Infinity = never recovers). */
+function startFakeApi(failedPolls = 0) {
 	const docs = new Map<string, Stored>();
-	const stats = { created: 0, put: 0, conflicts: 0, unpublish: 0, badAuth: 0 };
+	const stats = {
+		created: 0,
+		put: 0,
+		conflicts: 0,
+		unpublish: 0,
+		badAuth: 0,
+		polls: 0,
+	};
 	let statusCalls = 0;
 
 	const server = createServer((req, res) => {
@@ -77,10 +85,13 @@ function startFakeApi() {
 			}
 			if (req.method === "GET" && url === "/index/status") {
 				// Converges after a few polls, like the real indexer would.
-				const pending = Math.max(0, 2 - statusCalls++);
+				stats.polls++;
+				const pending = Math.max(0, 2 - statusCalls);
+				const failed = statusCalls < failedPolls ? 1 : 0;
+				statusCalls++;
 				return send(200, {
 					pending,
-					failed: 0,
+					failed,
 					oldestPendingAgeSeconds: null,
 					lastIndexedAt: null,
 				});
@@ -129,6 +140,7 @@ describe("datagen main against a fake API", () => {
 				BASE_URL: api.baseUrl,
 				EDITOR_TOKEN: "test-token",
 				DOCS: "60",
+				POLL_MS: "10",
 				CHANGES: "20",
 			});
 			assert.equal(code, 0, out);
@@ -140,6 +152,45 @@ describe("datagen main against a fake API", () => {
 			assert.equal(api.stats.created, 60);
 			assert.equal(api.stats.conflicts, 0, "If-Match must always be current");
 			assert.equal(api.stats.badAuth, 0);
+		} finally {
+			api.close();
+		}
+	});
+
+	it("keeps polling until failed is 0 too, not only pending", async () => {
+		const api = await startFakeApi(6);
+		try {
+			const { code, out } = await runDatagen({
+				BASE_URL: api.baseUrl,
+				EDITOR_TOKEN: "test-token",
+				DOCS: "5",
+				CHANGES: "2",
+				POLL_MS: "10",
+			});
+			assert.equal(code, 0, out);
+			const summary = JSON.parse(out.trim().split("\n").at(-1) as string);
+			assert.equal(summary.pending, 0);
+			assert.equal(summary.failed, 0);
+			assert.ok(api.stats.polls > 6, "must wait past the failed=1 polls");
+		} finally {
+			api.close();
+		}
+	});
+
+	it("exits 1 when failed never returns to 0", async () => {
+		const api = await startFakeApi(Number.POSITIVE_INFINITY);
+		try {
+			const { code, out } = await runDatagen({
+				BASE_URL: api.baseUrl,
+				EDITOR_TOKEN: "test-token",
+				DOCS: "5",
+				CHANGES: "2",
+				POLL_MS: "10",
+				WAIT_TIMEOUT_MS: "300",
+			});
+			assert.equal(code, 1, out);
+			const summary = JSON.parse(out.trim().split("\n").at(-1) as string);
+			assert.equal(summary.failed, 1);
 		} finally {
 			api.close();
 		}
