@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "test": "npm test -w apps/api",
-    "check": "biome check . && tsc -p apps/api --noEmit && tsc -p tests",
+    "test": "npm test --workspaces --if-present",
+    "check": "biome check . && tsc -p apps/api --noEmit && tsc -p tests && tsc -p tools/datagen",
     "build": "npm run build -w apps/api",
     "test:acceptance": "node --test \"tests/acceptance/**/*.test.ts\"",
     "migrate": "node --env-file-if-exists=.env apps/api/src/migrate.ts",
