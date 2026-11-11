@@ -1,1 +1,5 @@
-installCRDs: true
+# installCRDs está deprecado; crds.keep evita que un uninstall borre los
+# certificados emitidos junto con los CRDs.
+crds:
+  enabled: true
+  keep: true
