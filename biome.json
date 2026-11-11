@@ -1,18 +1,18 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
 	"files": {
-		"ignoreUnknown": true,
 		"includes": [
-			"apps/**/*.ts",
-			"apps/**/*.js",
-			"apps/**/*.json",
-			"package.json",
-			"!apps/**/dist",
-			"!**/node_modules"
+			"**/*.ts",
+			"**/*.json",
+			"!**/package.json",
+			"!**/package-lock.json",
+			"!**/tsconfig.json",
+			"!node_modules",
+			"!.claude"
 		]
 	},
 	"formatter": {
-		"enabled": true
+		"enabled": false
 	},
 	"linter": {
 		"enabled": true
