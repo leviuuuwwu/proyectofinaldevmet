@@ -1,5 +1,7 @@
 # Production is deployed manually (repo is private: environments can't require
 # reviewers). See docs/adr/0003. DEV-05.
+# The checks run on a GitHub-hosted runner; only the kubectl job runs on the
+# self-hosted runner inside the VM (ADR 0006).
 name: Deploy to Production
 
 on:
@@ -19,10 +21,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-prod:
+  verify:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    environment: production
     steps:
       - name: Validate input and actor
         env:
@@ -47,48 +48,86 @@ jobs:
           ok=$(gh run list --workflow app-delivery.yml --commit "$IMAGE_SHA" --status success --json databaseId --jq length)
           [ "$ok" -gt 0 ] || { echo "::error::No hay build exitoso de la imagen para $IMAGE_SHA"; exit 1; }
 
-      - name: Set up kubeconfig
+  deploy-prod:
+    needs: verify
+    runs-on: [self-hosted, linux, k3s-cluster]
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.image_sha }}
+          persist-credentials: false
+
+      # The runner's own kubeconfig only reaches search-dev. The search-prod token is a
+      # `production` environment secret (usable only from main) and lives in a
+      # temporary kubeconfig for this job only.
+      - name: Set up temporary prod kubeconfig
         env:
-          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+          KUBE_PROD_TOKEN: ${{ secrets.KUBE_PROD_TOKEN }}
         run: |
-          mkdir -p ~/.kube
-          printf '%s' "$KUBECONFIG_DATA" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          set -euo pipefail
+          [ -n "$KUBE_PROD_TOKEN" ] || { echo "::error::Falta el secret KUBE_PROD_TOKEN en el environment production"; exit 1; }
+          CA=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+          KCFG="$RUNNER_TEMP/kubeconfig-prod"
+          umask 077
+          cat > "$KCFG" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: k3s
+            cluster: { server: https://127.0.0.1:6443, certificate-authority-data: $CA }
+          users:
+          - name: ci-deployer-prod
+            user: { token: $KUBE_PROD_TOKEN }
+          contexts:
+          - name: prod
+            context: { cluster: k3s, user: ci-deployer-prod, namespace: search-prod }
+          current-context: prod
+          EOF
+          echo "KUBECONFIG=$KCFG" >> "$GITHUB_ENV"
 
       - name: Deploy image to search-prod
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/search-api:${{ inputs.image_sha }}
+          NS: search-prod
+          IMAGE_SHA: ${{ inputs.image_sha }}
+          OWNER: ${{ github.repository_owner }}
           PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
           AUTH_TOKENS_JSON: ${{ secrets.AUTH_TOKENS_JSON }}
         run: |
+          set -euo pipefail
           cd deploy/overlays/prod
-          kustomize edit set image "ghcr.io/leviuuuwwu/search-api=$IMAGE"
+          cat >> kustomization.yaml <<EOF
+          images:
+            - name: ghcr.io/leviuuuwwu/search-api
+              newName: ghcr.io/${OWNER}/search-api
+              newTag: ${IMAGE_SHA}
+          EOF
 
-          # 1. Crear o actualizar secretos de forma idempotente
-          kubectl -n search-prod create secret generic postgres-credentials \
+          # 1. Secrets (idempotente)
+          kubectl -n "$NS" create secret generic postgres-credentials \
             --from-literal=POSTGRES_USER=search \
             --from-literal=POSTGRES_DB=search \
             --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
-
-          kubectl -n search-prod create secret generic app-secrets \
+          kubectl -n "$NS" create secret generic app-secrets \
             --from-literal=DATABASE_URL="postgres://search:${PG_PASSWORD}@postgres:5432/search" \
             --from-literal=AUTH_TOKENS_JSON="$AUTH_TOKENS_JSON" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # 2. Eliminar el Job anterior para evitar error de inmutabilidad en k8s
-          kubectl delete job db-migration -n search-prod --ignore-not-found=true
+          # 2. El Job es inmutable: se borra antes de volver a aplicarlo
+          kubectl -n "$NS" delete job db-migration --ignore-not-found=true
 
-          # 3. Aplicar manifiestos y esperar a PostgreSQL
+          # 3. Manifiestos; PostgreSQL primero, luego migraciones, luego la app
           kubectl apply -k .
-          kubectl -n search-prod rollout status statefulset/postgres --timeout=120s
+          kubectl -n "$NS" rollout status statefulset/postgres --timeout=120s
+          kubectl -n "$NS" wait --for=condition=complete --timeout=120s job/db-migration
+          kubectl -n "$NS" rollout status deployment/search-api --timeout=120s
+          kubectl -n "$NS" rollout status deployment/search-indexer --timeout=120s
 
-          # 4. Esperar a que el Job de migraciones complete ANTES de validar la app
-          kubectl wait --for=condition=complete --timeout=120s job/db-migration -n search-prod
+      - name: Remove temporary prod kubeconfig
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kubeconfig-prod"
 
-          # 5. Verificar rollout de deployments
-          kubectl rollout status deployment/search-api -n search-prod --timeout=120s
-          kubectl rollout status deployment/search-indexer -n search-prod --timeout=120s
       - name: Summary
         env:
           IMAGE_SHA: ${{ inputs.image_sha }}
