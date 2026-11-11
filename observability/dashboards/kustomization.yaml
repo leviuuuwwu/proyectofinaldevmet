@@ -1,0 +1,24 @@
+# Convierte los JSON de este directorio en ConfigMaps que el sidecar de Grafana carga solo
+# (kube-prometheus-stack: grafana.sidecar.dashboards, searchNamespace "monitoring").
+#
+#   kubectl apply -k observability/dashboards
+#
+# Los JSON son la fuente de verdad: cualquier cambio hecho en la interfaz de Grafana se pierde
+# si no se vuelve a guardar en estos archivos.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+
+configMapGenerator:
+  - name: search-dashboard-service
+    files:
+      - search-service.json
+  - name: search-dashboard-indexing
+    files:
+      - search-indexing.json

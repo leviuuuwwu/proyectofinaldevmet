@@ -6,8 +6,10 @@ import type { Logger } from "../shared/logger.ts";
 import {
 	type ApiMetrics,
 	createApiMetrics,
+	createBacklogMetrics,
 	createRegistry,
 } from "../shared/metrics.ts";
+import { readOutboxBacklog } from "./indexing.ts";
 import { registerContractRoutes } from "./routes.ts";
 
 export function buildApi(deps: {
@@ -18,6 +20,7 @@ export function buildApi(deps: {
 	const app = createHttpServer(deps.logger);
 	const registry = createRegistry("api");
 	const metrics = createApiMetrics(registry);
+	createBacklogMetrics(registry, () => readOutboxBacklog(deps.pool));
 
 	app.addHook("onResponse", (request, reply, done) => {
 		observeRequest(metrics, request.routeOptions.url, request.method, reply);

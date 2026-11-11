@@ -17,7 +17,9 @@ identidad OIDC creada aquí. Referencia: DEV-07, sección 5.6.
 5. Cargar los outputs como secrets y variables **del repositorio** (no del
    environment `terraform-prod`: sus valores tendrían prioridad y ocultarían
    los del repo):
-   - Secrets: `ARM_CLIENT_ID` (`client_id`), `ARM_TENANT_ID` (`tenant_id`),
+   - Secrets: `ARM_CLIENT_ID` (`client_id`, identidad del apply),
+     `ARM_CLIENT_ID_PLAN` (`plan_client_id`, solo lectura, para el plan de los PR),
+     `ARM_TENANT_ID` (`tenant_id`),
      `TF_BACKEND_RESOURCE_GROUP_NAME` (variable `bootstrap_resource_group_name`),
      `TF_BACKEND_STORAGE_ACCOUNT_NAME` (`storage_account_name`),
      `TF_BACKEND_CONTAINER_NAME` (`container_name`).

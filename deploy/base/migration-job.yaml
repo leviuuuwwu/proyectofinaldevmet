@@ -21,6 +21,8 @@ spec:
           image: ghcr.io/leviuuuwwu/search-api:latest
           command: ["node", "dist/migrate.js"]
           envFrom:
+            - configMapRef:
+                name: app-config
             - secretRef:
                 name: app-secrets
           resources:

@@ -1,0 +1,247 @@
+# Pruebas unitarias de search-alerts.yaml (promtool test rules). Cada alerta se prueba en el caso
+# que debe dispararla y en el que no. Ejecutar con: bash observability/rules/validate.sh
+rule_files:
+  - search-alerts.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- SearchApiHighErrorRate: 16 % de 5xx en prod, 0 % en dev -------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod", route="/search", status_class="2xx"}'
+        values: "0+60x20"
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod", route="/search", status_class="5xx"}'
+        values: "0+12x20"
+      - series: 'http_server_request_duration_seconds_count{namespace="search-dev", route="/search", status_class="2xx"}'
+        values: "0+60x20"
+    alert_rule_test:
+      - eval_time: 3m # el `for` de 5 m todavía no se cumple
+        alertname: SearchApiHighErrorRate
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: SearchApiHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: search-prod
+            exp_annotations:
+              summary: "Más de 5 % de errores 5xx en la API (search-prod)"
+              description: "La API responde 5xx en 16.67% de las solicitudes de los últimos 5 minutos en search-prod. Revisar los logs con event=request.failed y la base de datos (/readyz)."
+
+  # --- SearchApiHighErrorRate: 1 % de 5xx no alerta -----------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod", route="/search", status_class="2xx"}'
+        values: "0+99x20"
+      - series: 'http_server_request_duration_seconds_count{namespace="search-prod", route="/search", status_class="5xx"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SearchApiHighErrorRate
+        exp_alerts: []
+
+  # --- SearchLatencyHigh: p95 de /search ~ 2.4 s en prod, rápido en dev ------------------------
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_bucket{namespace="search-prod", route="/search", le="1"}'
+        values: "0+0x20"
+      - series: 'http_server_request_duration_seconds_bucket{namespace="search-prod", route="/search", le="2.5"}'
+        values: "0+60x20"
+      - series: 'http_server_request_duration_seconds_bucket{namespace="search-prod", route="/search", le="+Inf"}'
+        values: "0+60x20"
+      - series: 'http_server_request_duration_seconds_bucket{namespace="search-dev", route="/search", le="0.1"}'
+        values: "0+60x20"
+      - series: 'http_server_request_duration_seconds_bucket{namespace="search-dev", route="/search", le="+Inf"}'
+        values: "0+60x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: SearchLatencyHigh
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: SearchLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "Búsqueda lenta: p95 de /search por encima de 1 s (search-prod)"
+              description: "El p95 de /search es 2.425s en search-prod. Comparar con el tablero «Search — Servicio» y revisar la carga de la base de datos."
+
+  # --- SearchProdMetricsMissing: solo hay métricas de dev; en prod falta todo -----------------
+  - interval: 1m
+    input_series:
+      - series: 'app_build_info{namespace="search-dev", component="api", version="1.0.0", commit="abc"}'
+        values: "1x20"
+      - series: 'app_build_info{namespace="search-dev", component="indexer", version="1.0.0", commit="abc"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SearchProdMetricsMissing
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: SearchProdMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: search-prod
+              component: api
+            exp_annotations:
+              summary: "Sin métricas de api en search-prod"
+              description: "Prometheus no recibe app_build_info del componente api en search-prod desde hace 5 minutos: el despliegue está caído o no se está raspando."
+          - exp_labels:
+              severity: critical
+              namespace: search-prod
+              component: indexer
+            exp_annotations:
+              summary: "Sin métricas de indexer en search-prod"
+              description: "Prometheus no recibe app_build_info del componente indexer en search-prod desde hace 5 minutos: el despliegue está caído o no se está raspando."
+
+  # --- SearchProdMetricsMissing: si ambos componentes de prod exponen métricas, no alerta -----
+  - interval: 1m
+    input_series:
+      - series: 'app_build_info{namespace="search-prod", component="api", version="1.0.0", commit="abc"}'
+        values: "1x20"
+      - series: 'app_build_info{namespace="search-prod", component="indexer", version="1.0.0", commit="abc"}'
+        values: "1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SearchProdMetricsMissing
+        exp_alerts: []
+
+  # --- SearchIndexLagHigh: p95 ~ 58 s en prod; 0.1 s en dev ----------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'index_lag_seconds_bucket{namespace="search-prod", op="upsert", le="30"}'
+        values: "0+0x20"
+      - series: 'index_lag_seconds_bucket{namespace="search-prod", op="upsert", le="60"}'
+        values: "0+60x20"
+      - series: 'index_lag_seconds_bucket{namespace="search-prod", op="upsert", le="+Inf"}'
+        values: "0+60x20"
+      - series: 'index_lag_seconds_bucket{namespace="search-dev", op="upsert", le="0.1"}'
+        values: "0+60x20"
+      - series: 'index_lag_seconds_bucket{namespace="search-dev", op="upsert", le="+Inf"}'
+        values: "0+60x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: SearchIndexLagHigh
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: SearchIndexLagHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "El índice va retrasado: p95 de index_lag_seconds por encima de 30 s (search-prod)"
+              description: "Los cambios del catálogo tardan 58.5s (p95) en verse en /search en search-prod. Revisar index_outbox_pending y los logs del indexer."
+
+  # --- SearchIndexOutboxBacklog: 600 pendientes en prod; 100 en dev ---------------------------
+  - interval: 1m
+    input_series:
+      - series: 'index_outbox_pending{namespace="search-prod"}'
+        values: "600x20"
+      - series: 'index_outbox_pending{namespace="search-dev"}'
+        values: "100x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: SearchIndexOutboxBacklog
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: SearchIndexOutboxBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "Acumulación en el outbox: más de 500 eventos pendientes (search-prod)"
+              description: "Hay 600 eventos sin indexar en search-prod desde hace al menos 10 minutos. El indexer no da abasto o está detenido."
+
+  # --- SearchIndexerErrors: errores sostenidos en prod; ninguno en dev -----------------------
+  - interval: 1m
+    input_series:
+      - series: 'index_events_processed_total{namespace="search-prod", result="error"}'
+        values: "0+6x20"
+      - series: 'index_events_processed_total{namespace="search-prod", result="applied"}'
+        values: "0+60x20"
+      - series: 'index_events_processed_total{namespace="search-dev", result="applied"}'
+        values: "0+60x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SearchIndexerErrors
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: SearchIndexerErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "El indexer está fallando al aplicar eventos (search-prod)"
+              description: "Hay errores de indexación sostenidos en search-prod (0.10 errores/s). Los eventos quedan con attempts y last_error en el outbox; buscar event=index.failed en los logs y consultar GET /index/status."
+
+  # --- SearchIndexerStalled: hay pendientes y no se procesa nada ------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'index_outbox_pending{namespace="search-prod"}'
+        values: "5x30"
+      - series: 'index_events_processed_total{namespace="search-prod", result="applied"}'
+        values: "100x30"
+      - series: 'index_outbox_pending{namespace="search-dev"}'
+        values: "5x30"
+      - series: 'index_events_processed_total{namespace="search-dev", result="applied"}'
+        values: "0+60x30"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: SearchIndexerStalled
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: SearchIndexerStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: search-prod
+            exp_annotations:
+              summary: "El indexer está atascado: hay eventos pendientes y ninguno se procesa (search-prod)"
+              description: "En search-prod hay 5 eventos pendientes y el indexer no procesó ninguno en 10 minutos. Revisar los logs del indexer; si hay una reconstrucción larga, confirmar con GET /admin/reindex/{jobId}."
+
+  # --- SearchReindexFailed: una reconstrucción falla en prod; en dev solo hay éxitos -----------
+  - interval: 1m
+    input_series:
+      - series: 'reindex_runs_total{namespace="search-prod", result="failed"}'
+        values: "0 0 0 0 0 1 1 1 1 1 1 1"
+      - series: 'reindex_runs_total{namespace="search-dev", result="succeeded"}'
+        values: "0 0 0 0 0 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SearchReindexFailed
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: SearchReindexFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "Falló una reconstrucción del índice (search-prod)"
+              description: "Una reconstrucción terminó con error en search-prod. El índice anterior sigue sirviendo búsquedas; consultar el error con GET /admin/reindex/{jobId} y relanzar."
+
+  # --- SearchReindexFailed: PRIMER fallo de la historia (la serie nace ya en 1, sin muestra previa en 0).
+  # increase() no lo cuenta; la segunda rama de la regla sí.
+  - interval: 1m
+    input_series:
+      - series: 'reindex_runs_total{namespace="search-prod", result="failed"}'
+        values: "_ _ _ _ _ 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SearchReindexFailed
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: SearchReindexFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: search-prod
+            exp_annotations:
+              summary: "Falló una reconstrucción del índice (search-prod)"
+              description: "Una reconstrucción terminó con error en search-prod. El índice anterior sigue sirviendo búsquedas; consultar el error con GET /admin/reindex/{jobId} y relanzar."
