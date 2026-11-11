@@ -1,0 +1,5 @@
+completed	success	fix(deploy): URL-encode the database password in DATABASE_URL (#61)	App Delivery CI/CD	main	push	42965897844	1m41s	2026-11-11T05:27:40Z
+completed	success	feat(deploy): print state, events and logs when a deploy fails (#60)	App Delivery CI/CD	main	push	42964982412	1m28s	2026-11-11T05:19:14Z
+completed	success	Merge pull request #59 from leviuuuwwu/fix/podmonitor-optional	App Delivery CI/CD	main	push	42964168598	1m40s	2026-11-11T05:12:03Z
+completed	success	docs(evidence): rubric-to-evidence index and fix duplicate test:load …	App Delivery CI/CD	main	push	42963547109	1m48s	2026-11-11T05:06:32Z
+completed	success	Merge pull request #54 from leviuuuwwu/fix/delivery-ops	App Delivery CI/CD	main	push	42962998630	1m30s	2026-11-11T05:01:37Z
