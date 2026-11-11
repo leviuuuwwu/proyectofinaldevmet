@@ -119,3 +119,73 @@ el de arriba vive en `~/.kube/`).
 
 Si la IP del administrador cambia, actualizar la variable `TF_VAR_ADMIN_IP` y
 volver a aplicar; mientras tanto el SSH (y por lo tanto el túnel) queda bloqueado.
+
+## 7. Verificación
+
+Evidencia tomada el 2026-11-10 sobre la infraestructura desplegada. Cada fila
+indica cómo repetir la prueba (con el túnel de la sección 6 abierto cuando usa
+`kubectl` o `helm`).
+
+| Requisito | Prueba | Resultado |
+|---|---|---|
+| DEV-06, DEV-08 | Plan de Terraform publicado en un PR (`terraform-pr.yml`) | `No changes. Your infrastructure matches the configuration.` (#39, #48) |
+| DEV-07, 5.6 | `terraform apply` del bootstrap en local (`infra/bootstrap`) | `Apply complete! Resources: 5 added, 0 changed, 2 destroyed.` (identidades separadas, #48) |
+| DEV-07, DEV-08 | Job `plan` de un PR con la identidad de solo lectura | Pasa con `Reader` + `Storage Blob Data Reader` y `-lock=false` (#48) |
+| DEV-06 (K3s) | `kubectl get nodes` | `vm-k3s-node Ready control-plane v1.36.5+k3s1` |
+| DEV-06 (Secrets cifrados) | `ssh azureuser@<fqdn> 'sudo k3s secrets-encrypt status'` | `Encryption Status: Enabled`, tipo AES-CBC |
+| Plataforma | `helm list -A` | 6 releases `deployed` con las versiones de `infra/scripts/platform-install.sh` |
+| Plataforma | `kubectl get pods -A` | 15 pods, todos `Running` |
+| TLS | `kubectl get clusterissuer letsencrypt-prod` | `READY True` |
+| TLS | Certificado de prueba emitido por `letsencrypt-prod` (abajo) | Emitido por Let's Encrypt para el FQDN |
+| NSG | `nc -z -G 5 <ip> 6443` y `nc -z -G 5 <ip> 443` | 6443 cerrado; 443 abierto |
+
+Versiones instaladas (`helm list -A`):
+
+| Release | Chart | App |
+|---|---|---|
+| cert-manager | cert-manager-v1.21.3 | v1.21.3 |
+| ingress-nginx | ingress-nginx-4.15.1 | 1.15.1 |
+| kube-prometheus-stack | kube-prometheus-stack-92.14.1 | v0.94.2 |
+| loki | loki-20.0.2 | 3.7.9 |
+| tempo | tempo-3.2.1 | 3.1.1 |
+| otel-collector | opentelemetry-collector-0.178.0 | 0.163.2 |
+
+Prueba de emisión de certificado, aislada en un namespace desechable para no
+tocar el `search-api-tls` de la app. Valida DNS, puerto 80 del NSG,
+ingress-nginx, el desafío HTTP-01 y el ClusterIssuer de producción:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-test
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cert-test
+  namespace: cert-test
+spec:
+  secretName: cert-test-tls
+  dnsNames:
+    - search-engine-devmet.westus2.cloudapp.azure.com
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+EOF
+kubectl -n cert-test wait certificate/cert-test --for=condition=Ready --timeout=5m
+kubectl -n cert-test get secret cert-test-tls -o jsonpath='{.data.tls\.crt}' \
+  | base64 -d | openssl x509 -noout -issuer -subject -dates
+kubectl delete namespace cert-test
+```
+
+```
+issuer= /C=US/O=Let's Encrypt/CN=YR2
+subject= /CN=search-engine-devmet.westus2.cloudapp.azure.com
+notBefore=Nov 11 03:05:32 2026 GMT
+notAfter=Feb  9 03:05:31 2027 GMT
+```
+
+Let's Encrypt limita a 5 certificados idénticos por semana: no repetir esta
+prueba en bucle.
