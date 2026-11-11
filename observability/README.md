@@ -3,7 +3,8 @@
 Dueñas: Astrid (`dashboards/`, `rules/`) y Daniela (`helm-values/`). Los dashboards
 (≥ 6 paneles) y las reglas de alerta (≥ 2, como PrometheusRule) usan las métricas de
 `docs/contracts/telemetry.md`; `helm-values/` versiona cert-manager, kube-prometheus-stack,
-Loki, Tempo y OTel Collector.
+Loki, Tempo y OTel Collector. Las versiones de chart están fijadas en
+`infra/scripts/platform-install.sh`, que los instala.
 
 Requisitos: MET-01, MET-03, MET-05, MET-06, MET-07; Anexo II puntos 6, 7 y 9.
 

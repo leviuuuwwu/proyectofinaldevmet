@@ -14,19 +14,21 @@ identidad OIDC creada aquí. Referencia: DEV-07, sección 5.6.
    `terraform.tfstate` local — no se commitea, ver `.gitignore`).
 3. `terraform plan -var="storage_account_name=<nombre-global-unico>"` y revisar.
 4. `terraform apply` con la misma variable. Nunca `-auto-approve`.
-5. Guardar los outputs:
-   - `storage_account_name`, `container_name` → bloque `backend "azurerm"` del
-     stack principal (`infra/`), que hoy no existe y debe agregarse con su
-     propio ADR en `docs/adr/` antes de activarlo.
-   - `client_id`, `tenant_id` → variables/secrets del repo de GitHub
-     (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`) usados por `azure/login` con OIDC
-     (`permissions: id-token: write` en el workflow).
-   - El `subscription_id` de la suscripción usada (no es output de este
-     stack) → `AZURE_SUBSCRIPTION_ID`.
-6. Mover este `terraform.tfstate` local a un lugar seguro fuera del repo (o
-   borrarlo si se acepta recrear el bootstrap manualmente si algo cambia). Es
-   la única excepción admitida a "nunca backend local": no hay backend remoto
-   todavía para guardarlo.
+5. Cargar los outputs como secrets y variables **del repositorio** (no del
+   environment `terraform-prod`: sus valores tendrían prioridad y ocultarían
+   los del repo):
+   - Secrets: `ARM_CLIENT_ID` (`client_id`), `ARM_TENANT_ID` (`tenant_id`),
+     `TF_BACKEND_RESOURCE_GROUP_NAME` (variable `bootstrap_resource_group_name`),
+     `TF_BACKEND_STORAGE_ACCOUNT_NAME` (`storage_account_name`),
+     `TF_BACKEND_CONTAINER_NAME` (`container_name`).
+   - Variable: `ARM_SUBSCRIPTION_ID` (no es output de este stack).
+   Los workflows `terraform-*.yml` los pasan al backend `azurerm` de
+   `infra/versions.tf` con `use_azuread_auth=true`.
+6. Guardar `terraform.tfstate` (y sus backups) y `terraform.tfvars` en una
+   carpeta privada fuera del repo y fuera de directorios temporales. Es la única
+   excepción admitida a "nunca backend local". Para volver a operar este stack,
+   copiarlos a `infra/bootstrap/` (el `.gitignore` los excluye) y correr
+   `terraform init`.
 
 ## Nota sobre el scope del Service Principal
 

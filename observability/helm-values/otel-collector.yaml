@@ -1,5 +1,18 @@
 mode: daemonset
 
+# Desde la 0.88 el chart exige elegir la imagen; la distribución k8s es la que
+# corresponde al command por defecto (otelcol-k8s).
+image:
+  repository: otel/opentelemetry-collector-k8s
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
 config:
   receivers:
     otlp:
