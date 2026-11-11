@@ -6,3 +6,12 @@ namespace: search-prod
 resources:
   - ../../base
   - ingress.yaml
+
+# Configuración no secreta del ambiente (runtime.md). Los secretos van en app-secrets,
+# que crea el workflow de despliegue desde los secrets del environment de GitHub.
+configMapGenerator:
+  - name: app-config
+    literals:
+      - APP_ENV=prod
+      - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector-opentelemetry-collector.monitoring.svc.cluster.local:4318

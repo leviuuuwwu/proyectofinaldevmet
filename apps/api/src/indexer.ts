@@ -13,7 +13,7 @@ const { createRegistry, createIndexerMetrics } = await import(
 );
 const { startWorker } = await import("./indexer/worker.ts");
 
-const pool = createPool(config);
+const pool = createPool(config, logger);
 const registry = createRegistry("indexer");
 const metrics = createIndexerMetrics(registry);
 
