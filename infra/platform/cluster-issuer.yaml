@@ -1,0 +1,16 @@
+# Emisor de certificados de Let's Encrypt (producción) para los Ingress con la
+# anotación cert-manager.io/cluster-issuer: letsencrypt-prod. El desafío HTTP-01
+# lo atiende ingress-nginx en el puerto 80 (abierto en el NSG).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

@@ -60,5 +60,17 @@ alertmanager:
 nodeExporter:
   enabled: false
 
+# K3s ejecuta controller-manager, scheduler, proxy y etcd embebidos en un solo
+# proceso que no expone esos endpoints de métricas; sin esto quedan targets
+# caídos y la alerta TargetDown disparada permanentemente.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
 kubeStateMetrics:
   enabled: true
