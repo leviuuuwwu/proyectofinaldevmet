@@ -58,12 +58,16 @@ jobs:
 
       - name: Set up tflint
         uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6.3.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: tflint
         working-directory: infra
         run: |
           tflint --init
           tflint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: terraform plan
         id: plan
