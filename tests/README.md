@@ -50,11 +50,11 @@ ACCEPTANCE_FAULTS=1 npm run test:acceptance
 
 Sin `ACCEPTANCE_FAULTS=1` se omiten. Cada prueba recupera los documentos que rompe.
 
-## Problemas conocidos
+## Regresiones cubiertas
 
-- **`reindex.test.ts` → "durante el rebuild toda búsqueda responde 200…"** está marcada `todo`:
-  durante el swap `/search` responde 200 con `total: 0`. Está reportado para `apps/api`
-  (ESC4-08, P4-4). Cuando se corrija, quitar el `todo`.
+- **`reindex.test.ts` → "durante el rebuild toda búsqueda responde 200…"**: durante el swap del
+  índice `/search` llegó a responder 200 con `total: 0` (ESC4-08, P4-4; corregido en #44). La prueba
+  repite el rebuild 3 veces con búsquedas continuas y exige que nunca se vea un total distinto.
 
 ## Pendiente
 

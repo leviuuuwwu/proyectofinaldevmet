@@ -10,7 +10,6 @@ import {
 	type ReindexJob,
 	runId,
 	search,
-	sleep,
 	UUID,
 	uniqueWord,
 	type WriteAccepted,
@@ -123,32 +122,36 @@ describe("GET /admin/reindex/{jobId}", () => {
 });
 
 describe("la reconstrucción no interrumpe ni altera las búsquedas", () => {
-	// BUG CONOCIDO (ESC4-08 / P4-4), reproducible: durante el swap /search responde 200 con
-	// total 0 en vez de los resultados del índice anterior. Se marca `todo` para no romper la
-	// suite mientras se corrige en apps/api (dueño: Leví). Al arreglarlo, quitar `todo`.
-	it("durante el rebuild toda búsqueda responde 200 y encuentra los documentos", {
-		todo: "BUG ESC4-08: /search devuelve total 0 durante el swap del índice",
-	}, async () => {
-		const jobId = await startReindex();
+	// Regresión de ESC4-08 / P4-4: el swap llegó a dejar /search en 200 con total 0
+	// (snapshot REPEATABLE READ anterior al commit del swap). Se repite el rebuild varias
+	// veces, con búsquedas continuas, para cubrir más ventanas de swap.
+	it("durante el rebuild toda búsqueda responde 200 y encuentra los documentos", async () => {
 		const observed: number[] = [];
-		let done = false;
-		const tracker = finish(jobId).then((j) => {
-			done = true;
-			return j;
-		});
-		let searches = 0;
-		while (!done || searches < 5) {
-			const res = await search({ q: WORD, category });
-			assert.equal(res.status, 200);
-			observed.push(res.body.total);
-			searches++;
-			await sleep(20);
-			if (searches > 500) break;
+		for (let round = 0; round < 3; round++) {
+			const jobId = await startReindex();
+			let done = false;
+			const tracker = finish(jobId).then((j) => {
+				done = true;
+				return j;
+			});
+			let searches = 0;
+			while (!done || searches < 5) {
+				const res = await search({ q: WORD, category });
+				assert.equal(res.status, 200);
+				observed.push(res.body.total);
+				searches++;
+				if (searches > 2000) break;
+			}
+			const job = await tracker;
+			assert.equal(job.state, "succeeded", job.error ?? "");
 		}
-		const job = await tracker;
-		assert.equal(job.state, "succeeded", job.error ?? "");
 		// Nunca se vio un índice vacío o parcial: siempre los 5 publicados.
-		for (const total of observed) assert.equal(total, published.length);
+		const wrong = observed.filter((total) => total !== published.length);
+		assert.deepEqual(
+			wrong,
+			[],
+			`${wrong.length} de ${observed.length} búsquedas vieron un total distinto de ${published.length}`,
+		);
 	});
 
 	it("después del rebuild: publicados presentes, despublicado ausente y estado indexed", async () => {
