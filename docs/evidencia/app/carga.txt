@@ -1,0 +1,23 @@
+▶ carga
+  ✔ búsquedas concurrentes: sin errores y latencia dentro del umbral (10805.186ms)
+  ℹ search (20 VUs): 1416 req, 0 errors, 138.7 req/s, p50 134.7 ms, p95 177.7 ms, p99 271.1 ms, max 470.3 ms
+  ✔ ráfaga de escrituras: sin errores, el outbox se vacía y se mide el caudal del indexer (7732.634208ms)
+  ℹ burst writes (10 VUs): 300 req, 0 errors, 60.3 req/s, p50 148 ms, p95 225.9 ms, p99 234.8 ms, max 240.7 ms
+  ℹ burst: outbox drained 1.01 s after the last write; indexer throughput ~50.1 events/s; queue lag p95 1.05 s (informational)
+  ✔ escrituras a ritmo constante: el retraso de indexación se mantiene acotado (12119.069292ms)
+  ℹ steady writes (10/s): 100 req, 0 errors, 9.9 req/s, p50 181.2 ms, p95 238.3 ms, p99 245.8 ms, max 246.9 ms
+  ℹ steady lag: 100 docs, p50 0.53 s, p95 0.98 s, max 1.02 s
+LOAD_REPORT {"baseUrl":"http://localhost:8080","runTag":"loadmwbrmayu77c8","config":{"seedDocs":300,"searchVus":20,"searchSeconds":10,"writeVus":10,"writeDocs":300,"steadyRate":10,"steadySeconds":10,"mixedSeconds":12,"maxSearchP95Ms":1000,"maxWriteP95Ms":2000,"maxLagP95S":5,"drainTimeoutS":60},"startedAt":"2026-11-11T06:56:03.078Z","seed":{"documents":300,"drainSeconds":1.23},"search":{"vus":20,"requests":1416,"errors":0,"rps":138.7,"p50Ms":134.7,"p95Ms":177.7,"p99Ms":271.1,"maxMs":470.3,"statuses":{"200":1416},"notes":{},"serverSearchOkDelta":1416},"burst":{"vus":10,"requests":300,"errors":0,"rps":60.3,"p50Ms":148,"p95Ms":225.9,"p99Ms":234.8,"maxMs":240.7,"statuses":{"200":83,"201":217},"notes":{},"drain":{"drained":true,"seconds":1.01,"pending":0,"failed":0},"indexerEventsPerSecond":50.1,"lag":{"samples":100,"p50S":0.52,"p95S":1.053,"maxS":1.163}},"steady":{"ratePerSecond":10,"requests":100,"errors":0,"rps":9.9,"p50Ms":181.2,"p95Ms":238.3,"p99Ms":245.8,"maxMs":246.9,"statuses":{"201":100},"notes":{},"drain":{"drained":true,"seconds":0.46,"pending":0,"failed":0},"lag":{"samples":100,"p50S":0.526,"p95S":0.983,"maxS":1.025}},"mixed":{"search":{"requests":1665,"errors":0,"rps":136.8,"p50Ms":135.7,"p95Ms":196.5,"p99Ms":241.9,"maxMs":447.4,"statuses":{"200":1665},"notes":{}},"writes":{"requests":396,"errors":0,"rps":32.8,"p50Ms":139.7,"p95Ms":224.1,"p99Ms":328.3,"maxMs":431.1,"statuses":{"200":108,"201":288},"notes":{}},"reindex":{"startStatus":202,"state":"succeeded","documents":6082,"error":null},"drain":{"drained":true,"seconds":0.57,"pending":0,"failed":0}},"finishedAt":"2026-11-11T06:56:53.199Z"}
+  ✔ carga mixta con una reconstrucción del índice en medio: sin errores y todo converge (12742.1135ms)
+  ℹ mixed search: 1665 req, 0 errors, 136.8 req/s, p50 135.7 ms, p95 196.5 ms, p99 241.9 ms, max 447.4 ms
+  ℹ mixed writes: 396 req, 0 errors, 32.8 req/s, p50 139.7 ms, p95 224.1 ms, p99 328.3 ms, max 431.1 ms
+  ℹ reindex during load: {"startStatus":202,"state":"succeeded","documents":6082,"error":null}; outbox drained in 0.57 s
+✔ carga (50115.433167ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50193.943417
