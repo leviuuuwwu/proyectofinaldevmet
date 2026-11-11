@@ -1,0 +1,108 @@
+# Identidades del pipeline (ADR 0006), una por ambiente:
+# - ci-deployer-dev: solo search-dev; es el kubeconfig permanente del runner.
+# - ci-deployer-prod: solo search-prod; su token vive como secret del environment
+#   production (solo usable desde main) y el job de prod lo usa en un kubeconfig temporal.
+# Lo aplica un administrador UNA vez en la VM (docs/runbooks/self-hosted-runner.md);
+# no forma parte de los overlays.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search-dev
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search-prod
+---
+# Lo que necesita el pipeline: secrets, manifiestos de deploy/base y overlays,
+# borrar el Job de migraciones y esperar rollouts. Nada a nivel de clúster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: search-deployer
+rules:
+  - apiGroups: [""]
+    resources: [services, secrets, configmaps, serviceaccounts, persistentvolumeclaims]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods, pods/log, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies, ingresses]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors]
+    verbs: [get, list, watch, create, update, patch, delete]
+# El ClusterRole solo se concede dentro de un namespace (RoleBinding, no
+# ClusterRoleBinding): cada identidad tiene permisos en un solo ambiente.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer-dev
+  namespace: ci-system
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-dev-token
+  namespace: ci-system
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer-dev
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer-dev
+  namespace: search-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: search-deployer
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer-dev
+    namespace: ci-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer-prod
+  namespace: ci-system
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-prod-token
+  namespace: ci-system
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer-prod
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer-prod
+  namespace: search-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: search-deployer
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer-prod
+    namespace: ci-system

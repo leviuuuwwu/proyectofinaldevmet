@@ -4,7 +4,6 @@
 import type { FastifyRequest } from "fastify";
 import type { Pool } from "../shared/db.ts";
 import { inSpan } from "../shared/tracing.ts";
-import { withTransaction } from "../shared/tx.ts";
 
 export interface SearchParams {
 	q?: string;
@@ -84,25 +83,30 @@ export function searchHandler(pool: Pool) {
 				const { where, rank, values } = buildSearchSql(params);
 				const orderBy = buildOrderBy(params.sort, hasText);
 				const offset = (params.page - 1) * params.pageSize;
-				// Same snapshot for total and page.
-				const { total, rows } = await withTransaction(
-					pool,
-					async (client) => {
-						const count = await client.query<{ total: number }>(
-							`SELECT count(*)::int AS total FROM search_documents ${where}`,
-							values,
-						);
-						const page = await client.query<HitRow>(
-							`SELECT id, title, description, tags, category, published_at, rank
-							 FROM (SELECT *, ${rank} AS rank FROM search_documents ${where}) hits
-							 ORDER BY ${orderBy}
-							 LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-							[...values, params.pageSize, offset],
-						);
-						return { total: count.rows[0]?.total ?? 0, rows: page.rows };
-					},
-					{ isolation: "REPEATABLE READ", readOnly: true },
+				// One READ COMMITTED statement: total (window count) and page share the
+				// statement snapshot, which is taken after table locks are acquired. A
+				// REPEATABLE READ transaction would fix its snapshot before waiting on the
+				// rebuild's rename and then read the new table as empty (ESC4-07).
+				const page = await pool.query<HitRow & { total: number }>(
+					`SELECT id, title, description, tags, category, published_at, rank,
+					        count(*) OVER ()::int AS total
+					 FROM (SELECT *, ${rank} AS rank FROM search_documents ${where}) hits
+					 ORDER BY ${orderBy}
+					 LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+					[...values, params.pageSize, offset],
 				);
+				const rows = page.rows;
+				// A page past the end has no rows to carry the window count.
+				const total =
+					rows[0]?.total ??
+					(offset === 0
+						? 0
+						: ((
+								await pool.query<{ total: number }>(
+									`SELECT count(*)::int AS total FROM search_documents ${where}`,
+									values,
+								)
+							).rows[0]?.total ?? 0));
 				span.setAttribute("search.total", total);
 				return {
 					total,
