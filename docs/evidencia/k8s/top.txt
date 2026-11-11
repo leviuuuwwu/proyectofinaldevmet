@@ -1,0 +1,32 @@
+NAME             REQ_CPU   REQ_MEM   LIM_CPU   LIM_MEM
+search-api       100m      128Mi     500m      512Mi
+search-indexer   100m      128Mi     500m      512Mi
+postgres         100m      192Mi     <none>    384Mi
+--- reposo
+NAME                              CPU(cores)   MEMORY(bytes)   
+postgres-0                        9m           21Mi            
+search-api-5fd68db59d-kh8f2       2m           83Mi            
+search-api-5fd68db59d-xb6kg       2m           50Mi            
+search-indexer-6bc5b56bff-dl7cr   3m           121Mi           
+NAME          CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+vm-k3s-node   188m         9%       4578Mi          57%         
+--- carga t+15s
+NAME                              CPU(cores)   MEMORY(bytes)   
+postgres-0                        14m          21Mi            
+search-api-5fd68db59d-kh8f2       3m           83Mi            
+search-api-5fd68db59d-xb6kg       2m           50Mi            
+search-indexer-6bc5b56bff-dl7cr   3m           121Mi           
+--- carga t+30s
+NAME                              CPU(cores)   MEMORY(bytes)   
+postgres-0                        207m         59Mi            
+search-api-5fd68db59d-kh8f2       194m         92Mi            
+search-api-5fd68db59d-xb6kg       2m           50Mi            
+search-indexer-6bc5b56bff-dl7cr   26m          121Mi           
+NAME          CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+vm-k3s-node   772m         38%      4505Mi          56%         
+--- carga t+45s
+NAME                              CPU(cores)   MEMORY(bytes)   
+postgres-0                        39m          39Mi            
+search-api-5fd68db59d-kh8f2       76m          93Mi            
+search-api-5fd68db59d-xb6kg       3m           50Mi            
+search-indexer-6bc5b56bff-dl7cr   33m          121Mi           

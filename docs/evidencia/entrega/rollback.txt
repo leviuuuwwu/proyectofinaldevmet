@@ -1,0 +1,25 @@
+deployment.apps/search-api 
+REVISION  CHANGE-CAUSE
+1         <none>
+
+{"version":"1.0.0","commit":"d8319cdd709f491dd9ddd0fbca84f1afcd4237ce","builtAt":"2026-11-11T05:27:48Z"}deployment.apps/search-api image updated
+NAME                              READY   STATUS         RESTARTS      AGE
+postgres-0                        1/1     Running        0             98s
+search-api-5fd68db59d-kh8f2       1/1     Running        1 (38m ago)   61m
+search-api-5fd68db59d-xb6kg       1/1     Running        1 (38m ago)   61m
+search-api-7474d54946-fjfpf       0/1     ErrImagePull   0             41s
+search-indexer-6bc5b56bff-dl7cr   1/1     Running        1 (38m ago)   61m
+{"version":"1.0.0","commit":"d8319cdd709f491dd9ddd0fbca84f1afcd4237ce","builtAt":"2026-11-11T05:27:48Z"}search durante la falla: 200
+deployment.apps/search-api rolled back
+deployment "search-api" successfully rolled out
+NAME                              READY   STATUS        RESTARTS      AGE
+postgres-0                        1/1     Running       0             102s
+search-api-5fd68db59d-kh8f2       1/1     Running       1 (38m ago)   61m
+search-api-5fd68db59d-xb6kg       1/1     Running       1 (38m ago)   61m
+search-api-7474d54946-fjfpf       0/1     Terminating   0             45s
+search-indexer-6bc5b56bff-dl7cr   1/1     Running       1 (38m ago)   61m
+{"version":"1.0.0","commit":"d8319cdd709f491dd9ddd0fbca84f1afcd4237ce","builtAt":"2026-11-11T05:27:48Z"}deployment.apps/search-api 
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+
