@@ -25,6 +25,8 @@ el scrape por defecto es cada 15 s.
 | `search_requests_total` | counter | `result` (`ok\|client_error\|server_error`) | api | Solicitudes a `/search` por resultado |
 | `catalog_writes_total` | counter | `op` (`create\|update\|unpublish`), `result` (`ok\|client_error\|conflict\|server_error`) | api | Escrituras al catálogo |
 | `index_outbox_pending` | gauge | — | indexer | Filas del outbox sin procesar (medido en cada ciclo) |
+| `index_backlog_events` | gauge | `state` (`pending\|failed`) | api | Eventos sin procesar leídos del outbox en cada scrape; sigue reportando con el indexer caído |
+| `index_backlog_oldest_age_seconds` | gauge | — | api | Antigüedad del evento sin procesar más antiguo (0 si no hay); base de la alerta de frescura |
 | `index_lag_seconds` | histogram | `op` (`upsert\|delete`) | indexer | Desde `outbox.created_at` (commit en catálogo) hasta aplicado en el índice. Buckets: 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300 |
 | `index_events_processed_total` | counter | `result` (`applied\|stale_skipped\|error`) | indexer | Eventos del outbox procesados |
 | `reindex_runs_total` | counter | `result` (`succeeded\|failed`) | api | Reconstrucciones terminadas |
