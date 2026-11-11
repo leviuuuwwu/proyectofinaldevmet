@@ -1,4 +1,4 @@
-# PR validation (DEV-03). The `ci` job is the required status check for main.
+# PR validation (DEV-03) & Image Publishing (DEV-04). The `ci` job is the required status check for main.
 name: ci
 
 on:
@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  packages: write
+  security-events: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,11 +20,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: npm
@@ -33,3 +35,63 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: npm test
+
+  container:
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (OCI labels & SHA tag)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/search-api
+          tags: |
+            type=sha,format=short,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build image for vulnerability scan
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: search-api:scan
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILT_AT=${{ steps.meta.outputs.version }}
+
+      - name: Run Trivy vulnerability scanner (DEV-02)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'search-api:scan'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Push image to GHCR (DEV-04)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILT_AT=${{ steps.meta.outputs.version }}
