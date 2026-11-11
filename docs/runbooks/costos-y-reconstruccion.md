@@ -9,7 +9,7 @@ Verificar en la calculadora de precios de Azure antes de cada entrega; pueden ca
 
 | Recurso (Terraform) | Detalle | Encendida 24/7 | VM detenida (deallocate) |
 |---|---|---|---|
-| `azurerm_linux_virtual_machine.vm` | Standard_B2ls_v2, ≈ 0.0416 USD/h (verificar: la B2s v1 no está disponible en westus2) | ≈ 30.4 USD/mes | 0 |
+| `azurerm_linux_virtual_machine.vm` | Standard_B2ls_v2, 0.0416 USD/h (API de precios de Azure, 2026-11) | ≈ 30.4 USD/mes | 0 |
 | Disco del SO | StandardSSD_LRS, 30 GiB (E4) | ≈ 2.4 USD/mes | ≈ 2.4 USD/mes |
 | `azurerm_public_ip.pip` | Standard, estática, ≈ 0.005 USD/h | ≈ 3.7 USD/mes | ≈ 3.7 USD/mes |
 | Storage account del estado (bootstrap) | Standard_LRS, unos KB | < 0.1 USD/mes | < 0.1 USD/mes |
@@ -79,8 +79,19 @@ requiere repetir el bootstrap. Con la VM destruida el costo queda en < 0.1 USD/m
    ```
    El FQDN sale del output `fqdn` de Terraform.
 6. **Acceso administrativo** por túnel SSH (sección 6).
-7. **Plataforma base**: cert-manager y stack de observabilidad con los values de
-   `observability/helm-values/`.
+7. **Plataforma base**, con el túnel de la sección 6 abierto:
+   ```bash
+   KUBECONFIG=~/.kube/search-devmet.yaml infra/scripts/platform-install.sh
+   ```
+   Instala con versiones de chart fijadas cert-manager y el ClusterIssuer
+   `letsencrypt-prod` (`infra/platform/`), kube-prometheus-stack, Loki, Tempo,
+   OTel Collector e ingress-nginx, con los values de `observability/helm-values/`
+   e `infra/helm-values/`. Requiere `helm` y `kubectl` locales. La contraseña de
+   Grafana se genera al azar la primera vez y se lee con:
+   ```bash
+   kubectl -n monitoring get secret grafana-admin-credentials \
+     -o jsonpath='{.data.admin-password}' | base64 -d
+   ```
 8. **Aplicación**: workflows de despliegue (`deploy.yml`, `deploy-prod.yml`) y
    verificación con `npm run smoke` contra `BASE_URL`.
 
