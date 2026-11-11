@@ -7,6 +7,12 @@ image:
 command:
   name: otelcol-contrib
 
+# Logs de los pods: el preset agrega el receiver filelog (lee /var/log/pods del nodo)
+# al pipeline logs, que se exporta a Loki por su endpoint OTLP nativo.
+presets:
+  logsCollection:
+    enabled: true
+
 resources:
   requests:
     cpu: 50m
@@ -31,6 +37,8 @@ config:
       endpoint: tempo.monitoring.svc.cluster.local:4317
       tls:
         insecure: true
+    otlphttp/loki:
+      endpoint: http://loki.monitoring.svc.cluster.local:3100/otlp
 
   service:
     pipelines:
@@ -40,6 +48,9 @@ config:
       traces:
         receivers: [otlp]
         exporters: [otlp/tempo]
+      logs:
+        receivers: [otlp]
+        exporters: [otlphttp/loki]
 
 # En modo daemonset el chart no crea Service salvo que se pida. La app envía OTLP a
 # otel-collector-opentelemetry-collector.monitoring.svc:4318 (ConfigMap app-config);
