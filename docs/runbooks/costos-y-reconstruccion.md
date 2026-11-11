@@ -9,16 +9,21 @@ Verificar en la calculadora de precios de Azure antes de cada entrega; pueden ca
 
 | Recurso (Terraform) | Detalle | Encendida 24/7 | VM detenida (deallocate) |
 |---|---|---|---|
-| `azurerm_linux_virtual_machine.vm` | Standard_B2ls_v2, 0.0416 USD/h (API de precios de Azure, 2026-11) | ≈ 30.4 USD/mes | 0 |
+| `azurerm_linux_virtual_machine.vm` | Standard_B2s_v2 (2 vCPU, 8 GiB), ≈ 0.083 USD/h | ≈ 60.7 USD/mes | 0 |
 | Disco del SO | StandardSSD_LRS, 30 GiB (E4) | ≈ 2.4 USD/mes | ≈ 2.4 USD/mes |
 | `azurerm_public_ip.pip` | Standard, estática, ≈ 0.005 USD/h | ≈ 3.7 USD/mes | ≈ 3.7 USD/mes |
 | Storage account del estado (bootstrap) | Standard_LRS, unos KB | < 0.1 USD/mes | < 0.1 USD/mes |
 | Tráfico de salida | los primeros 100 GB/mes no se cobran | ≈ 0 | 0 |
-| **Total** | | **≈ 36.5 USD/mes** | **≈ 6.2 USD/mes** |
+| **Total** | | **≈ 67 USD/mes** | **≈ 6.2 USD/mes** |
 
-Uso realista del proyecto (VM encendida 8 h × 22 días ≈ 176 h/mes): ≈ 7.3 USD de
-cómputo + 6.2 USD fijos ≈ **13.5 USD/mes**. El crédito de Azure for Students es de
+Uso realista del proyecto (VM encendida 8 h × 22 días ≈ 176 h/mes): ≈ 14.6 USD de
+cómputo + 6.2 USD fijos ≈ **21 USD/mes**. El crédito de Azure for Students es de
 100 USD, así que hay que detener la VM cuando no se use (sección 3).
+
+Por qué 8 GiB y no 4: con Standard_B2ls_v2 (4 GiB) la plataforma de observabilidad
+más la app dejaban ~150 MB libres; el sistema descartaba y releía programas del
+disco sin parar (≈ 130 MB/s de lectura, 90 % del tiempo esperando disco) y el API
+de Kubernetes dejaba de responder.
 
 ## 2. Presupuesto y alertas (DEV-13)
 
