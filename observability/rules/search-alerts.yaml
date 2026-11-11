@@ -1,0 +1,127 @@
+# Reglas de alerta del buscador (MET-05, MET-06, MET-07). Solo usan métricas de
+# docs/contracts/telemetry.md. kube-prometheus-stack carga cualquier PrometheusRule de cualquier
+# namespace (ruleSelectorNilUsesHelmValues: false en observability/helm-values).
+#
+# Los umbrales son SUPUESTOS iniciales, no SLOs aprobados: ajustarlos al catálogo de indicadores
+# (MET-01). Validación local: observability/rules/validate.sh
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: search-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: search
+spec:
+  groups:
+    - name: search-api
+      rules:
+        - alert: SearchApiHighErrorRate
+          # Más de 5 % de respuestas 5xx durante 5 minutos, con tráfico mínimo (>0.05 req/s)
+          # para no alertar por una sola solicitud fallida en un entorno casi inactivo.
+          expr: |
+            (
+              sum by (namespace) (rate(http_server_request_duration_seconds_count{status_class="5xx"}[5m]))
+              /
+              sum by (namespace) (rate(http_server_request_duration_seconds_count[5m]))
+            ) > 0.05
+            and
+            sum by (namespace) (rate(http_server_request_duration_seconds_count[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Más de 5 % de errores 5xx en la API ({{ $labels.namespace }})"
+            description: "La API responde 5xx en {{ $value | humanizePercentage }} de las solicitudes de los últimos 5 minutos en {{ $labels.namespace }}. Revisar los logs con event=request.failed y la base de datos (/readyz)."
+
+        - alert: SearchLatencyHigh
+          # p95 de /search por encima de 1 s durante 10 minutos.
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (rate(http_server_request_duration_seconds_bucket{route="/search"}[5m]))
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Búsqueda lenta: p95 de /search por encima de 1 s ({{ $labels.namespace }})"
+            description: "El p95 de /search es {{ $value | humanizeDuration }} en {{ $labels.namespace }}. Comparar con el tablero «Search — Servicio» y revisar la carga de la base de datos."
+
+        - alert: SearchProdMetricsMissing
+          # La API o el indexer de producción dejaron de exponer métricas (caído, sin scrape o
+          # sin red). Es la señal de "servicio caído" sin depender de las etiquetas de `up`.
+          expr: |
+            absent(app_build_info{component="api", namespace="search-prod"})
+            or
+            absent(app_build_info{component="indexer", namespace="search-prod"})
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Sin métricas de {{ $labels.component }} en search-prod"
+            description: "Prometheus no recibe app_build_info del componente {{ $labels.component }} en search-prod desde hace 5 minutos: el despliegue está caído o no se está raspando."
+
+    - name: search-indexing
+      rules:
+        - alert: SearchIndexLagHigh
+          # p95 del retraso catálogo → índice por encima de 30 s. Durante una reconstrucción el
+          # indexer pausa y el retraso sube (ADR 0002); `for` evita alertar por eso.
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (rate(index_lag_seconds_bucket[5m]))
+            ) > 30
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "El índice va retrasado: p95 de index_lag_seconds por encima de 30 s ({{ $labels.namespace }})"
+            description: "Los cambios del catálogo tardan {{ $value | humanizeDuration }} (p95) en verse en /search en {{ $labels.namespace }}. Revisar index_outbox_pending y los logs del indexer."
+
+        - alert: SearchIndexOutboxBacklog
+          # Más de 500 eventos sin procesar durante 10 minutos (el outbox no se vacía).
+          expr: max by (namespace) (index_outbox_pending) > 500
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Acumulación en el outbox: más de 500 eventos pendientes ({{ $labels.namespace }})"
+            description: "Hay {{ $value }} eventos sin indexar en {{ $labels.namespace }} desde hace al menos 10 minutos. El indexer no da abasto o está detenido."
+
+        - alert: SearchIndexerErrors
+          # Errores al aplicar eventos al índice de forma sostenida (MET-07).
+          expr: sum by (namespace) (rate(index_events_processed_total{result="error"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "El indexer está fallando al aplicar eventos ({{ $labels.namespace }})"
+            description: "Hay errores de indexación sostenidos en {{ $labels.namespace }} ({{ $value | printf \"%.2f\" }} errores/s). Los eventos quedan con attempts y last_error en el outbox; buscar event=index.failed en los logs y consultar GET /index/status."
+
+        - alert: SearchIndexerStalled
+          # Hay trabajo pendiente pero no se procesa nada: indexer vivo pero atascado.
+          expr: |
+            max by (namespace) (index_outbox_pending) > 0
+            and
+            sum by (namespace) (rate(index_events_processed_total[10m])) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "El indexer está atascado: hay eventos pendientes y ninguno se procesa ({{ $labels.namespace }})"
+            description: "En {{ $labels.namespace }} hay {{ $value }} eventos pendientes y el indexer no procesó ninguno en 10 minutos. Revisar los logs del indexer; si hay una reconstrucción larga, confirmar con GET /admin/reindex/{jobId}."
+
+        - alert: SearchReindexFailed
+          # Una reconstrucción terminó en `failed` (el índice anterior sigue intacto).
+          # prom-client crea la serie con su primer incremento, y increase() no cuenta ese primer
+          # evento (la serie nace ya en 1). La segunda rama cubre ese caso: una serie que no
+          # existía hace 15 minutos y ya vale algo.
+          expr: |
+            sum by (namespace) (increase(reindex_runs_total{result="failed"}[15m])) > 0
+            or
+            sum by (namespace) (
+              reindex_runs_total{result="failed"} unless reindex_runs_total{result="failed"} offset 15m
+            ) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Falló una reconstrucción del índice ({{ $labels.namespace }})"
+            description: "Una reconstrucción terminó con error en {{ $labels.namespace }}. El índice anterior sigue sirviendo búsquedas; consultar el error con GET /admin/reindex/{jobId} y relanzar."

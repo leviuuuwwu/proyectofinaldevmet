@@ -1,0 +1,1098 @@
+{
+	"id": null,
+	"uid": "search-indexing",
+	"title": "Search — Indexación y reconstrucción",
+	"description": "Consistencia eventual entre el catálogo y el índice de búsqueda: outbox, retraso, errores y reconstrucciones (MET-03, MET-06, MET-07).",
+	"tags": [
+		"search"
+	],
+	"timezone": "browser",
+	"editable": true,
+	"graphTooltip": 1,
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"time": {
+		"from": "now-1h",
+		"to": "now"
+	},
+	"annotations": {
+		"list": []
+	},
+	"links": [
+		{
+			"title": "Dashboards del buscador",
+			"type": "dashboards",
+			"tags": [
+				"search"
+			],
+			"asDropdown": true,
+			"includeVars": true,
+			"keepTime": true
+		}
+	],
+	"templating": {
+		"list": [
+			{
+				"name": "datasource",
+				"label": "Fuente de datos",
+				"type": "datasource",
+				"query": "prometheus",
+				"current": {},
+				"hide": 0,
+				"refresh": 1,
+				"regex": ""
+			},
+			{
+				"name": "namespace",
+				"label": "Entorno (namespace)",
+				"type": "query",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "${datasource}"
+				},
+				"query": {
+					"query": "label_values(app_build_info, namespace)",
+					"refId": "ns"
+				},
+				"definition": "label_values(app_build_info, namespace)",
+				"includeAll": true,
+				"multi": true,
+				"current": {
+					"selected": true,
+					"text": "All",
+					"value": "$__all"
+				},
+				"refresh": 2,
+				"sort": 1,
+				"hide": 0
+			}
+		]
+	},
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Pendientes",
+			"description": "Eventos pendientes (outbox). index_outbox_pending. La alerta SearchIndexOutboxBacklog dispara por encima de 500 durante 10 minutos. Sube mientras corre una reconstrucción (ADR 0002).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 0,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum(index_outbox_pending{namespace=~\"$namespace\"})",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"decimals": 0,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "yellow",
+								"value": 100
+							},
+							{
+								"color": "red",
+								"value": 500
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Retraso p95",
+			"description": "Retraso de indexación p95. Desde el commit en el catálogo hasta que se ve en /search. La alerta SearchIndexLagHigh dispara por encima de 30 s durante 10 minutos.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 4,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "histogram_quantile(0.95, sum by (le) (rate(index_lag_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"decimals": 2,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "yellow",
+								"value": 5
+							},
+							{
+								"color": "red",
+								"value": 30
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Aplicados/s",
+			"description": "Eventos aplicados por segundo. Caudal del indexer.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 8,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum(rate(index_events_processed_total{namespace=~\"$namespace\",result=\"applied\"}[$__rate_interval]))",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"decimals": 1,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Errores/s",
+			"description": "Errores de indexación por segundo. Eventos que fallaron al aplicarse. La alerta SearchIndexerErrors dispara si es > 0 durante 5 minutos.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 12,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum(rate(index_events_processed_total{namespace=~\"$namespace\",result=\"error\"}[$__rate_interval])) or vector(0)",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"decimals": 2,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 0.000001
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 5,
+			"type": "stat",
+			"title": "Reindexaciones",
+			"description": "Reconstrucciones desde el arranque. reindex_runs_total (succeeded + failed) acumulado desde el último arranque de la API. Se usa el valor del contador y no increase(): una serie nace ya en 1 y increase() no cuenta ese primer evento.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 16,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum(reindex_runs_total{namespace=~\"$namespace\"}) or vector(0)",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"decimals": 0,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 6,
+			"type": "stat",
+			"title": "Indexer activo",
+			"description": "Instancias del indexer. Rojo si no hay ninguna.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 4,
+				"w": 4,
+				"x": 20,
+				"y": 0
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "count(app_build_info{namespace=~\"$namespace\",component=\"indexer\"})",
+					"legendFormat": "",
+					"range": true,
+					"refId": "A",
+					"instant": false
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"noValue": "0",
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "red",
+								"value": null
+							},
+							{
+								"color": "green",
+								"value": 1
+							}
+						]
+					},
+					"color": {
+						"mode": "thresholds"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"values": false
+				},
+				"colorMode": "background",
+				"graphMode": "area",
+				"textMode": "auto",
+				"justifyMode": "auto",
+				"orientation": "auto"
+			}
+		},
+		{
+			"id": 7,
+			"type": "timeseries",
+			"title": "Eventos pendientes en el outbox",
+			"description": "La línea roja marca el umbral de alerta (500).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 4
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "index_outbox_pending{namespace=~\"$namespace\"}",
+					"legendFormat": "{{pod}}",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						},
+						"thresholdsStyle": {
+							"mode": "line"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "transparent",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 500
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 8,
+			"type": "timeseries",
+			"title": "Retraso catálogo → índice (p50, p95, p99)",
+			"description": "index_lag_seconds. La línea roja marca el umbral de alerta (30 s).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 4
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "histogram_quantile(0.5, sum by (le) (rate(index_lag_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+					"legendFormat": "p50",
+					"range": true,
+					"refId": "A"
+				},
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "histogram_quantile(0.95, sum by (le) (rate(index_lag_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+					"legendFormat": "p95",
+					"range": true,
+					"refId": "B"
+				},
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "histogram_quantile(0.99, sum by (le) (rate(index_lag_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+					"legendFormat": "p99",
+					"range": true,
+					"refId": "C"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						},
+						"thresholdsStyle": {
+							"mode": "line"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "transparent",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 30
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 9,
+			"type": "heatmap",
+			"title": "Distribución del retraso de indexación",
+			"description": "Cuántos eventos cayeron en cada rango de retraso (buckets de index_lag_seconds).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 12
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum by (le) (increase(index_lag_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval]))",
+					"legendFormat": "{{le}}",
+					"range": true,
+					"refId": "A",
+					"format": "heatmap"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"custom": {
+						"scaleDistribution": {
+							"type": "linear"
+						}
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"calculate": false,
+				"cellGap": 1,
+				"color": {
+					"mode": "scheme",
+					"scheme": "Oranges",
+					"fill": "dark-orange",
+					"scale": "exponential",
+					"exponent": 0.5,
+					"steps": 64,
+					"reverse": false
+				},
+				"yAxis": {
+					"axisPlacement": "left",
+					"unit": "s"
+				},
+				"rowsFrame": {
+					"layout": "auto"
+				},
+				"tooltip": {
+					"mode": "single",
+					"yHistogram": false
+				},
+				"legend": {
+					"show": true
+				}
+			}
+		},
+		{
+			"id": 10,
+			"type": "timeseries",
+			"title": "Eventos procesados por resultado",
+			"description": "applied, stale_skipped (evento antiguo ignorado de forma idempotente) y error.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 12
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum by (result) (rate(index_events_processed_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+					"legendFormat": "{{result}}",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 30,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "normal",
+							"group": "A"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 11,
+			"type": "timeseries",
+			"title": "Tasa de errores de indexación",
+			"description": "Errores sobre el total de eventos procesados.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 8,
+				"x": 0,
+				"y": 20
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum(rate(index_events_processed_total{namespace=~\"$namespace\",result=\"error\"}[$__rate_interval])) / sum(rate(index_events_processed_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+					"legendFormat": "errores",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "percentunit",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						},
+						"axisSoftMax": 0.05
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 12,
+			"type": "timeseries",
+			"title": "Reconstrucciones acumuladas por resultado",
+			"description": "reindex_runs_total: succeeded y failed desde el último arranque. Un escalón es una reconstrucción terminada.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 8,
+				"x": 8,
+				"y": 20
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum by (result) (reindex_runs_total{namespace=~\"$namespace\"})",
+					"legendFormat": "{{result}}",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 13,
+			"type": "timeseries",
+			"title": "Duración de la reconstrucción (p95)",
+			"description": "reindex_duration_seconds; durante la reconstrucción el indexer pausa y el outbox crece (esperado).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 8,
+				"x": 16,
+				"y": 20
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "histogram_quantile(0.95, sum by (le, result) (rate(reindex_duration_seconds_bucket{namespace=~\"$namespace\"}[$__rate_interval])))",
+					"legendFormat": "{{result}}",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		},
+		{
+			"id": 14,
+			"type": "timeseries",
+			"title": "Eventos indexados por operación",
+			"description": "upsert (alta o cambio) y delete (despublicación), según los eventos aplicados.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 0,
+				"y": 28
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"editorMode": "code",
+					"expr": "sum by (op) (rate(index_lag_seconds_count{namespace=~\"$namespace\"}[$__rate_interval]))",
+					"legendFormat": "{{op}}",
+					"range": true,
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 30,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "normal",
+							"group": "A"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
+		}
+	]
+}
