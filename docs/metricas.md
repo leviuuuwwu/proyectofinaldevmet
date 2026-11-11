@@ -150,7 +150,7 @@ Todo está versionado; nada depende de clics no documentados (Anexo II punto 9):
 1. Stack (Prometheus, Grafana, Loki, Tempo, OTel Collector, cert-manager, ingress-nginx):
    `infra/scripts/platform-install.sh` con los values de `observability/helm-values/` e
    `infra/helm-values/`.
-2. Recolección de la app: `deploy/base/pod-monitor.yaml` (se aplica con cada despliegue).
+2. Recolección de la app: `deploy/monitoring/pod-monitor.yaml`, que el workflow de despliegue aplica en cada ambiente cuando el CRD `PodMonitor` existe (si no, deja un aviso en el resumen).
 3. Trazas: `OTEL_EXPORTER_OTLP_ENDPOINT` en el ConfigMap `app-config` de cada overlay.
 4. Alertas: `observability/rules/prometheusrule.sh | kubectl apply -f -`.
 5. Dashboard: JSON en `observability/dashboards/`, cargado como ConfigMap con la etiqueta

@@ -129,6 +129,20 @@ jobs:
           kubectl -n "$NS" rollout status deployment/search-api --timeout=120s
           kubectl -n "$NS" rollout status deployment/search-indexer --timeout=120s
 
+      # The app does not depend on the observability stack: the PodMonitor is applied
+      # only if its CRD exists; otherwise the run gets a visible warning.
+      - name: Apply PodMonitor (if the CRD is installed)
+        env:
+          NS: search-prod
+        run: |
+          echo "monitoring.coreos.com resources visible to this runner:"
+          kubectl api-resources --api-group=monitoring.coreos.com -o name || true
+          if kubectl api-resources --api-group=monitoring.coreos.com -o name | grep -qx 'podmonitors.monitoring.coreos.com'; then
+            kubectl -n "$NS" apply -f deploy/monitoring/pod-monitor.yaml
+          else
+            echo "::warning::CRD PodMonitor no instalado: Prometheus no recolecta la app (revisar kube-prometheus-stack, infra/scripts/platform-install.sh)"
+          fi
+
       - name: Remove temporary prod kubeconfig
         if: always()
         run: rm -f "$RUNNER_TEMP/kubeconfig-prod"
