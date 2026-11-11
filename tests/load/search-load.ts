@@ -1,8 +1,8 @@
 // Carga reproducible sobre /search (condición 5.8, P4-5) con medición opcional del
 // retraso de indexación de escrituras concurrentes (P4-2). Solo HTTP.
 //
-//   BASE_URL=https://... READER_TOKEN=... RPS=10 DURATION_S=60 npm run test:load
-//   ... EDITOR_TOKEN=... WRITES=20 npm run test:load      # además mide la frescura
+//   BASE_URL=https://... READER_TOKEN=... RPS=10 DURATION_S=60 npm run load:search
+//   ... EDITOR_TOKEN=... WRITES=20 npm run load:search      # además mide la frescura
 //
 // Modelo abierto: se lanza una búsqueda cada 1/RPS s aunque las anteriores no hayan
 // terminado (hasta MAX_IN_FLIGHT), para que la latencia observada no frene la carga.
