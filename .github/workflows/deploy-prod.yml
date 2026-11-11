@@ -108,6 +108,11 @@ jobs:
               newTag: ${IMAGE_SHA}
           EOF
 
+          # DATABASE_URL con la contraseña codificada para URL (base64 trae / + =).
+
+          DATABASE_URL="$(../../scripts/database-url.sh)"
+
+
           # 1. Secrets (idempotente)
           kubectl -n "$NS" create secret generic postgres-credentials \
             --from-literal=POSTGRES_USER=search \
@@ -115,7 +120,7 @@ jobs:
             --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n "$NS" create secret generic app-secrets \
-            --from-literal=DATABASE_URL="postgres://search:${PG_PASSWORD}@postgres:5432/search" \
+            --from-literal=DATABASE_URL="$DATABASE_URL" \
             --from-literal=AUTH_TOKENS_JSON="$AUTH_TOKENS_JSON" \
             --dry-run=client -o yaml | kubectl apply -f -
 
