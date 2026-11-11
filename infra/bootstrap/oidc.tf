@@ -26,28 +26,10 @@ locals {
   github_repo_subject_prefix = "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}"
 }
 
-# Subject de un push directo a la rama (sin environment en el job). Ningún
-# workflow actual lo usa tal cual, pero se deja por si se agrega uno así.
-resource "azuread_application_federated_identity_credential" "github_actions" {
-  application_id = azuread_application.github_actions.id
-  display_name   = "github-actions-${var.github_branch}"
-  description    = "OIDC: ${var.github_org}/${var.github_repo}@${var.github_branch}"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "${local.github_repo_subject_prefix}:ref:refs/heads/${var.github_branch}"
-}
-
-# Subject real que emite GitHub para el evento pull_request (terraform-pr.yml,
-# job sin "environment:"). No es el mismo formato que el de push a rama.
-resource "azuread_application_federated_identity_credential" "github_actions_pull_request" {
-  application_id = azuread_application.github_actions.id
-  display_name   = "github-actions-pull-request"
-  description    = "OIDC: ${var.github_org}/${var.github_repo} pull_request (terraform-pr.yml)"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "${local.github_repo_subject_prefix}:pull_request"
-}
-
+# La identidad con escritura confía SOLO en el environment del apply. Cualquier
+# PR puede editar un workflow, así que el subject pull_request va a una
+# identidad aparte de solo lectura (github_actions_plan, abajo).
+#
 # Subject real que emite GitHub cuando el job especifica "environment:"
 # (terraform-apply.yml usa environment: terraform-prod) — GitHub cambia el
 # subject a esta forma en vez de usar el ref de la rama.
@@ -76,4 +58,40 @@ resource "azurerm_role_assignment" "github_actions_storage_blob_data_contributor
   scope                = azurerm_storage_account.tfstate.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azuread_service_principal.github_actions.object_id
+}
+
+# Identidad de solo lectura para el plan de los PR (terraform-pr.yml). Un PR
+# que modifique el workflow obtiene como mucho estos permisos: leer los
+# recursos y el estado, nunca escribir. Sin permiso de escritura no puede tomar
+# el lease del estado, por eso el plan corre con -lock=false.
+resource "azuread_application" "github_actions_plan" {
+  display_name = "${var.app_display_name}-plan"
+  owners       = [data.azuread_client_config.current.object_id]
+}
+
+resource "azuread_service_principal" "github_actions_plan" {
+  client_id = azuread_application.github_actions_plan.client_id
+}
+
+# Subject real que emite GitHub para el evento pull_request (job sin
+# "environment:").
+resource "azuread_application_federated_identity_credential" "github_actions_plan_pull_request" {
+  application_id = azuread_application.github_actions_plan.id
+  display_name   = "github-actions-pull-request"
+  description    = "OIDC: ${var.github_org}/${var.github_repo} pull_request (terraform-pr.yml)"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "${local.github_repo_subject_prefix}:pull_request"
+}
+
+resource "azurerm_role_assignment" "github_actions_plan_reader" {
+  scope                = azurerm_resource_group.target.id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.github_actions_plan.object_id
+}
+
+resource "azurerm_role_assignment" "github_actions_plan_storage_blob_data_reader" {
+  scope                = azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azuread_service_principal.github_actions_plan.object_id
 }
