@@ -24,25 +24,25 @@ SSH al clúster (`docs/runbooks/costos-y-reconstruccion.md` §6), tokens de dev 
 
 ```sh
 export BASE_URL=https://<host-de-dev>   # o un port-forward a search-api:8080
-mkdir -p evidencia
+mkdir -p docs/evidencia/met07
 T0=$(date -u +%FT%TZ); echo "T0 inicio línea base $T0"
 
 # 1. Línea base: 5 min de carga con escrituras (medir latencia y frescura normales)
-RPS=5 DURATION_S=300 WRITES=30 npm run test:load | tee evidencia/met07-1-base.json
+RPS=5 DURATION_S=300 WRITES=30 npm run -s load:search | tee docs/evidencia/met07/met07-1-base.json
 
 # 2. Degradación: detener el indexer
 kubectl -n search-dev scale deployment/search-indexer --replicas=0
 T1=$(date -u +%FT%TZ); echo "T1 indexer detenido $T1"
 
 # 3. Mantener carga y escrituras 6 min (WRITES>0 sin indexer: frescura = no indexado)
-RPS=5 DURATION_S=360 WRITES=30 npm run test:load | tee evidencia/met07-2-degradado.json
+RPS=5 DURATION_S=360 WRITES=30 npm run -s load:search | tee docs/evidencia/met07/met07-2-degradado.json
 
 # 4. Mitigación: reanudar el indexer
 kubectl -n search-dev scale deployment/search-indexer --replicas=1
 T2=$(date -u +%FT%TZ); echo "T2 indexer reanudado $T2"
 
 # 5. Verificación: 5 min de carga; el backlog debe volver a 0 y la alerta resolverse
-RPS=5 DURATION_S=300 WRITES=30 npm run test:load | tee evidencia/met07-3-recuperado.json
+RPS=5 DURATION_S=300 WRITES=30 npm run -s load:search | tee docs/evidencia/met07/met07-3-recuperado.json
 curl -s -H "Authorization: Bearer $EDITOR_TOKEN" "$BASE_URL/index/status"
 ```
 
