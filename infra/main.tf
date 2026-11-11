@@ -60,6 +60,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
   size                  = "Standard_B2ls_v2"
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.nic.id]
+  # Azure lo activa al crear la VM; declararlo evita un cambio perpetuo en el plan.
+  vm_agent_platform_updates_enabled = true
 
   admin_ssh_key {
     username   = "azureuser"
