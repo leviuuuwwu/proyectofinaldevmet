@@ -1,9 +1,11 @@
 mode: daemonset
 
-# Desde la 0.88 el chart exige elegir la imagen; la distribución k8s es la que
-# corresponde al command por defecto (otelcol-k8s).
+# Desde la 0.88 el chart exige elegir la imagen. Se usa contrib porque la
+# distribución k8s no incluye el exporter prometheus; su binario es otelcol-contrib.
 image:
-  repository: otel/opentelemetry-collector-k8s
+  repository: otel/opentelemetry-collector-contrib
+command:
+  name: otelcol-contrib
 
 resources:
   requests:
