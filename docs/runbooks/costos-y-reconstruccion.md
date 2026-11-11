@@ -125,6 +125,25 @@ el de arriba vive en `~/.kube/`).
 Si la IP del administrador cambia, actualizar la variable `TF_VAR_ADMIN_IP` y
 volver a aplicar; mientras tanto el SSH (y por lo tanto el túnel) queda bloqueado.
 
+### Dar acceso SSH a otro integrante
+
+1. **IP en el NSG (Terraform):** agregarla a la variable del repo `TF_VAR_EXTRA_ADMIN_IPS`
+   (lista HCL/JSON) y lanzar `terraform-apply.yml`. Solo actualiza la regla `AllowSSHAdmin`;
+   la VM no se recrea.
+   ```bash
+   gh variable set TF_VAR_EXTRA_ADMIN_IPS --body '["203.0.113.10"]'
+   gh workflow run terraform-apply.yml --ref main
+   ```
+2. **Llave pública en la VM (manual, declarado):** quien ya tiene acceso la agrega a
+   `authorized_keys`. No se hace por Terraform porque cambiar `admin_ssh_key` de la VM la
+   **recrea** y se pierde el clúster.
+   ```bash
+   ssh azureuser@<fqdn> 'cat >> ~/.ssh/authorized_keys' < llave-del-integrante.pub
+   ```
+3. Quitar el acceso: sacar la IP de `TF_VAR_EXTRA_ADMIN_IPS` (+ apply) y la línea de
+   `authorized_keys`. Las IPs residenciales cambian: si el túnel deja de conectar, revisar
+   la IP con `curl -s https://ifconfig.me`.
+
 ## 7. Verificación
 
 Evidencia tomada el 2026-11-10 sobre la infraestructura desplegada. Cada fila

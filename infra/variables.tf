@@ -32,6 +32,17 @@ variable "admin_ip" {
   description = "IP pública del administrador para acceso SSH restringido (puerto 22)"
 }
 
+variable "extra_admin_ips" {
+  type        = list(string)
+  description = "IPs públicas adicionales con SSH (otros integrantes). Cambiarla solo actualiza la regla del NSG; no recrea la VM"
+  default     = []
+
+  validation {
+    condition     = alltrue([for ip in var.extra_admin_ips : can(cidrhost("${ip}/32", 0))])
+    error_message = "extra_admin_ips debe contener IPv4 sin máscara, p. ej. [\"203.0.113.10\"]."
+  }
+}
+
 variable "admin_ssh_public_key" {
   type        = string
   description = "Clave pública SSH para el usuario admin de la VM"
