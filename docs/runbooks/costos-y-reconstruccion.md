@@ -9,7 +9,7 @@ Verificar en la calculadora de precios de Azure antes de cada entrega; pueden ca
 
 | Recurso (Terraform) | Detalle | Encendida 24/7 | VM detenida (deallocate) |
 |---|---|---|---|
-| `azurerm_linux_virtual_machine.vm` | Standard_B2s, ≈ 0.0416 USD/h | ≈ 30.4 USD/mes | 0 |
+| `azurerm_linux_virtual_machine.vm` | Standard_B2ls_v2, ≈ 0.0416 USD/h (verificar: la B2s v1 no está disponible en westus2) | ≈ 30.4 USD/mes | 0 |
 | Disco del SO | StandardSSD_LRS, 30 GiB (E4) | ≈ 2.4 USD/mes | ≈ 2.4 USD/mes |
 | `azurerm_public_ip.pip` | Standard, estática, ≈ 0.005 USD/h | ≈ 3.7 USD/mes | ≈ 3.7 USD/mes |
 | Storage account del estado (bootstrap) | Standard_LRS, unos KB | < 0.1 USD/mes | < 0.1 USD/mes |

@@ -51,10 +51,13 @@ locals {
 }
 
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                  = "vm-k3s-node"
-  resource_group_name   = data.azurerm_resource_group.rg.name
-  location              = data.azurerm_resource_group.rg.location
-  size                  = "Standard_B2s"
+  name                = "vm-k3s-node"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  # Standard_B2s (v1) no está disponible en westus2 para esta suscripción
+  # (SkuNotAvailable). B2ls_v2 tiene los mismos 2 vCPU / 4 GiB, cuota de la
+  # familia Bsv2 y solo restringe zonas de disponibilidad; esta VM no usa zona.
+  size                  = "Standard_B2ls_v2"
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.nic.id]
 
