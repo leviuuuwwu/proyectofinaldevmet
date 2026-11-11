@@ -1,15 +1,40 @@
 mode: daemonset
+
+# Desde la 0.88 el chart exige elegir la imagen; la distribución k8s es la que
+# corresponde al command por defecto (otelcol-k8s).
+image:
+  repository: otel/opentelemetry-collector-k8s
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
 config:
   receivers:
     otlp:
       protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
+
   exporters:
     prometheus:
       endpoint: 0.0.0.0:8889
+    otlp/tempo:
+      endpoint: tempo.monitoring.svc.cluster.local:4317
+      tls:
+        insecure: true
+
   service:
     pipelines:
-      traces:
+      metrics:
         receivers: [otlp]
         exporters: [prometheus]
+      traces:
+        receivers: [otlp]
+        exporters: [otlp/tempo]

@@ -1,5 +1,76 @@
 prometheus:
   prometheusSpec:
     serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleNamespaceSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
 grafana:
-  adminPassword: "admin"
+  admin:
+    existingSecret: "grafana-admin-credentials"
+    userKey: "admin-user"
+    passwordKey: "admin-password"
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: "monitoring"
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+    - name: Tempo
+      type: tempo
+      access: proxy
+      url: http://tempo:3200
+      isDefault: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+nodeExporter:
+  enabled: false
+
+# K3s ejecuta controller-manager, scheduler, proxy y etcd embebidos en un solo
+# proceso que no expone esos endpoints de métricas; sin esto quedan targets
+# caídos y la alerta TargetDown disparada permanentemente.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true

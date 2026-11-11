@@ -1,0 +1,25 @@
+controller:
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+  kind: DaemonSet
+  hostPort:
+    enabled: true
+    ports:
+      http: 80
+      https: 443
+  service:
+    type: ClusterIP
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+  resources:
+    requests:
+      cpu: 50m
+      memory: 90Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
