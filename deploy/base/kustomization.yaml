@@ -8,4 +8,5 @@ resources:
   - indexer-deployment.yaml
   - migration-job.yaml
   - network-policy.yaml
+  - pod-monitor.yaml
   - rbac.yaml
