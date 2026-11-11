@@ -11,6 +11,7 @@
 		"dev:api": "node --env-file-if-exists=.env --watch apps/api/src/api.ts",
 		"dev:indexer": "node --env-file-if-exists=.env --watch apps/api/src/indexer.ts",
 		"smoke": "node tests/smoke.ts",
+		"test:golden": "node --test \"tests/golden/**/*.test.ts\"",
 		"db:reset": "docker compose down -v && docker compose up -d --wait db && npm run migrate"
 	},
 	"repository": {
