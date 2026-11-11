@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - 'apps/**'
+      # Cambios solo de manifiestos también se construyen: es lo que dispara el
+      # despliegue a dev (deploy.yml escucha este workflow).
+      - 'deploy/**'
       - 'package*.json'
       - 'Dockerfile'
       - '.github/workflows/app-delivery.yml'

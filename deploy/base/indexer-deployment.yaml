@@ -37,3 +37,21 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          # Sin tráfico de usuarios: readiness refleja si alcanza PostgreSQL (visible en
+          # kubectl get pods) y liveness reinicia el proceso si deja de responder.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
