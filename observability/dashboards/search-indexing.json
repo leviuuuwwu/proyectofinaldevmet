@@ -1093,6 +1093,103 @@
 					"sort": "desc"
 				}
 			}
+		},
+		{
+			"id": 15,
+			"type": "timeseries",
+			"title": "Backlog visto por la API (antigüedad y pendientes)",
+			"description": "Lo calcula la API desde el outbox en cada scrape, así que sigue existiendo aunque el indexer esté caído (index_outbox_pending lo publica el indexer y desaparece con él). Es la señal de IndexFreshnessStale: antigüedad > 60 s durante 2 min (MET-07).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "${datasource}"
+			},
+			"gridPos": {
+				"h": 8,
+				"w": 12,
+				"x": 12,
+				"y": 28
+			},
+			"targets": [
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"refId": "A",
+					"expr": "max(index_backlog_oldest_age_seconds{namespace=~\"$namespace\"})",
+					"legendFormat": "antigüedad del más antiguo (s)"
+				},
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"refId": "B",
+					"expr": "max(index_backlog_events{namespace=~\"$namespace\",state=\"pending\"})",
+					"legendFormat": "pendientes"
+				},
+				{
+					"datasource": {
+						"type": "prometheus",
+						"uid": "${datasource}"
+					},
+					"refId": "C",
+					"expr": "max(index_backlog_events{namespace=~\"$namespace\",state=\"failed\"})",
+					"legendFormat": "fallidos"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "none",
+					"min": 0,
+					"custom": {
+						"drawStyle": "line",
+						"lineWidth": 1,
+						"fillOpacity": 10,
+						"showPoints": "never",
+						"spanNulls": false,
+						"stacking": {
+							"mode": "none",
+							"group": "A"
+						},
+						"thresholdsStyle": {
+							"mode": "line+area"
+						}
+					},
+					"color": {
+						"mode": "palette-classic"
+					},
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 60
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "table",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull",
+						"max"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			}
 		}
 	]
 }

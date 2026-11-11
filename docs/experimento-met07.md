@@ -57,42 +57,86 @@ curl -s -H "Authorization: Bearer $EDITOR_TOKEN" "$BASE_URL/index/status"
 | Error de búsqueda | `search:errors:ratio_rate5m` | 0 |
 | Escrituras | `catalog_writes_total{op="create",result="ok"}` | Siguen creciendo |
 | Drenaje | `rate(index_events_processed_total{result="applied"}[1m])` | Pico breve después de T2 |
-| Logs | Loki: `{namespace="search-dev"} \| json \| event="index.applied"` | Ausentes entre T1 y T2 |
+| Logs | Loki: `{k8s_namespace_name="search-dev"} \| json \| event="index.applied"` | Ausentes entre T1 y T2 |
 | Prueba de carga | `indexFreshnessMs.notIndexed` en `met07-2-degradado.json` | > 0 (no se indexan mientras dure) |
 
-## Resultados (completar)
+## Resultados (corrida del 2026-11-11 en `search-dev`)
 
-| Momento | Hora (UTC) | Observación |
-|---|---|---|
-| Inicio de la línea base (T0) | | |
-| Indexer detenido (T1) | | |
-| Alerta Pending | | |
-| Alerta Firing | | |
-| Indexer reanudado (T2) | | |
-| Backlog en 0 | | |
-| Alerta Resolved | | |
+Evidencia en [`docs/evidencia/met07/`](evidencia/met07/):
+- `tiempos.txt`: marcas T0 a T3;
+- `timeline.log`: una muestra cada ~33 s de Prometheus con [`met07-watch.sh`](../observability/scripts/met07-watch.sh);
+- `met07-*.json`: las tres fases de carga;
+- `index-status-final.json`;
+- capturas `0-`… a `6-`….
 
-Comparativa antes / durante / después (de los JSON de la prueba de carga y de Prometheus):
+La carga entró por `kubectl port-forward` (~120 ms de red en cada solicitud).
+
+| Momento | Hora (UTC) | Desde T1 | Observación |
+|---|---|---|---|
+| Inicio de la línea base (T0) | 07:29:09 | — | Backlog en 0, sin alertas |
+| Indexer detenido (T1) | 07:34:10 | 0:00 | `kubectl scale --replicas=0`; `indexer_pods` pasa a sin serie |
+| Antigüedad > 60 s | 07:35:17 | +1:07 | 62 s; crece ~1 s por segundo (23.8 → 62.1 → 92.1 → … → 452.1) |
+| Alerta Pending | 07:35:50 | +1:40 | `IndexFreshnessStale=pending` (la regla se evalúa cada 1 min) |
+| Alerta Firing | 07:37:27 | **+3:17** | Tras `for: 2m`; dentro de lo previsto (3 a 4 min) |
+| Indexer reanudado (T2) | 07:42:00 | +7:50 | 30 eventos pendientes, el más antiguo con 452 s |
+| Backlog en 0 | ≤ 07:42:24 | T2 + < 24 s | `oldest_age_s=0.1`; el indexer drenó los 30 eventos al arrancar |
+| Alerta Resolved | ≤ 07:42:24 | T2 + < 24 s | `alerts=none`; en `ALERTS{}` el último punto Firing es 07:42:00 (`3-alerta-historial.png`) |
+| Fin (T3) | 07:47:00 | — | `/index/status`: `pending 0, failed 0` |
+
+La fase degradada duró 7:50 y no 6:00 porque la prueba de carga, al terminar sus 6 min de
+búsquedas, siguió esperando que se indexaran las 30 escrituras hasta su límite de tiempo.
+
+Comparativa antes, durante y después (de los JSON de la prueba de carga y de `timeline.log`):
 
 | Métrica | Línea base | Degradado | Recuperado |
 |---|---|---|---|
-| Búsquedas p95 (ms) | | | |
-| Tasa de error | | | |
-| Frescura p95 (ms) | | n/a (no indexa) | |
-| Antigüedad máxima del backlog (s) | | | |
+| Búsquedas enviadas / con error | 1500 / 0 | 1800 / 0 | 1500 / 0 |
+| Búsquedas p50 / p95 (ms) | 158.9 / 254.8 | 162.5 / 224.4 | 164.3 / 259.3 |
+| Escrituras confirmadas | 30 | 30 (201) | 30 |
+| Frescura p50 / p95 (ms) | 923 / 1422 | **n/a: 30 de 30 sin indexar** | 834 / 1250 |
+| Antigüedad máxima del backlog (s) | 0.4 | **452.1** | 0.1 |
+| Eventos pendientes (máx.) | 1 | 30 | 1 |
 
-Adjuntar capturas de la gráfica de `index_backlog_oldest_age_seconds` con T1 y T2 marcados, y de
-la alerta en Firing y en Resolved.
+Capturas:
+- `2-rampa-explore-*.png` y `4-recuperado-explore-drenaje.png`: la rampa y la caída a 0;
+- `3-alerta-firing.png`: Prometheus → Alerts;
+- `3-alerta-historial.png`: estados Pending y Firing en el tiempo;
+- `1-` y `4-…-dashboard.png`: el dashboard de indexación;
+- `5-loki-hueco.png`: el conteo por minuto de `index.applied` en Loki muestra el corte entre
+  T1 y T2 y el pico del drenaje (37 en 1 min) justo después de T2;
+- `5-loki-correlacion.png`: una línea de `index.applied` con su `traceId` (el del indexer) y su
+  `linkedTraceId` (el de la solicitud de la API que originó el cambio);
+- `6-tempo-indexer-process.png`: un lote del indexer en Tempo, con un `SAVEPOINT` por evento.
 
-## Análisis (completar con la evidencia)
+## Análisis
 
-- **Síntoma:** las búsquedas no reflejan escrituras confirmadas.
-- **Señal de detección:** `IndexFreshnessStale` y la rampa de la antigüedad del backlog.
-- **Mecanismo causal:** sin indexer nadie consume el outbox; las escrituras siguen entrando
+- **Síntoma:** las búsquedas no reflejan escrituras confirmadas. Las 30 escrituras de la fase
+  degradada respondieron 201, pero ninguna apareció en `/search` hasta T2.
+- **Qué no se degradó:** la disponibilidad y la latencia de la búsqueda. Hubo 0 errores en
+  5100 búsquedas, y el p95 se mantuvo en ~225–260 ms en las tres fases; las diferencias quedan
+  dentro del ruido del port-forward. Se confirman las hipótesis 1 y 2: catálogo y búsqueda no
+  dependen del indexer.
+- **Señal de detección:** `index_backlog_oldest_age_seconds`. Creció linealmente, a 1 s por
+  segundo, desde T1, y `IndexFreshnessStale` pasó a Firing a los 3:17 (hipótesis 3).
+- **Hallazgo sobre la instrumentación:** el panel "Eventos pendientes en el outbox" del dashboard
+  usa `index_outbox_pending`, que **publica el indexer**. Con el indexer detenido, la serie
+  **desapareció** en lugar de crecer (`1-degradado-dashboard-*.png`), y las alertas que dependen
+  de ella (`SearchIndexOutboxBacklog`, `SearchIndexerStalled`) **no podían dispararse**. La
+  señal que sí detectó la falla la calcula la **API** desde el outbox (`index_backlog_*`), y
+  por eso sigue existiendo cuando el componente que falla es justamente el que debería
+  reportarla.
+  - Acción: el dashboard incorpora los paneles de `index_backlog_*`.
+  - Lección: una señal de salud no debe depender solo del proceso que vigila.
+- **Mecanismo causal:** sin indexer, nadie consume el outbox. Las escrituras siguen entrando
   porque el outbox se escribe en la misma transacción que el catálogo (ADR 0002).
-- **Respuesta:** reanudar el indexer (o `POST /admin/reindex`, que reconstruye desde el catálogo).
-- **Validación:** backlog en 0, alerta resuelta, las búsquedas reflejan los documentos creados
-  durante la degradación (`GET /documents/{id}/index-status` → `indexed`).
+- **Respuesta:** reanudar el indexer. La alternativa es `POST /admin/reindex`, que reconstruye
+  desde el catálogo.
+- **Validación (hipótesis 4):**
+  - el backlog llegó a 0 menos de 24 s después de T2, sin intervención;
+  - la alerta se resolvió en la misma muestra;
+  - `/index/status` terminó con `pending 0, failed 0`;
+  - en la fase recuperada la frescura volvió a valores normales: p95 de 1.25 s, sin documentos
+    sin indexar.
 
 ## Limitaciones
 

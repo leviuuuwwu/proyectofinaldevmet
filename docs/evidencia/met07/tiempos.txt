@@ -1,0 +1,4 @@
+T0 linea base 2026-11-11T07:29:09Z
+T1 indexer detenido 2026-11-11T07:34:10Z
+T2 indexer reanudado 2026-11-11T07:42:00Z
+T3 fin 2026-11-11T07:47:00Z

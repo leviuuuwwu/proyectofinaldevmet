@@ -1,0 +1,33 @@
+{
+  "target": {
+    "baseUrl": "http://localhost:8080",
+    "rps": 5,
+    "durationS": 300,
+    "writes": 30
+  },
+  "searches": {
+    "sent": 1500,
+    "skippedByInFlightLimit": 0,
+    "achievedRps": 5,
+    "statusClasses": {
+      "2xx": 1500
+    },
+    "networkErrors": 0,
+    "errorRate": 0,
+    "latencyMs": {
+      "count": 1500,
+      "p50": 158.9,
+      "p95": 254.8,
+      "p99": 325.5,
+      "max": 679.2
+    }
+  },
+  "indexFreshnessMs": {
+    "count": 30,
+    "p50": 923.3,
+    "p95": 1422.3,
+    "p99": 1615.4,
+    "max": 1615.4,
+    "notIndexed": 0
+  }
+}

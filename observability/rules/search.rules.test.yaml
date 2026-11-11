@@ -93,3 +93,15 @@ tests:
       - eval_time: 20m
         alertname: IndexEventsFailed
         exp_alerts: []
+
+  # Solo respuestas 2xx: el ratio de error del SLI vale 0 (no queda sin datos).
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{namespace="search-dev",route="/search",method="GET",status_class="2xx"}'
+        values: '0+60x10'
+    promql_expr_test:
+      - expr: search:errors:ratio_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'search:errors:ratio_rate5m{namespace="search-dev"}'
+            value: 0

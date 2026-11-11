@@ -99,11 +99,11 @@ sum by (namespace, container) (rate(container_cpu_usage_seconds_total{namespace=
 **Loki** (logs JSON de pino; requiere que el collector envíe los logs de los pods a Loki)
 ```logql
 # Seguir una solicitud: todos los logs de un correlationId
-{namespace="search-dev"} | json | correlationId="<id>"
+{k8s_namespace_name="search-dev"} | json | correlationId="<id>"
 # Del API al indexer: el traceId de catalog.write es el linkedTraceId de index.applied
-{namespace="search-dev"} | json | event="index.applied" | linkedTraceId="<traceId>"
+{k8s_namespace_name="search-dev"} | json | event="index.applied" | linkedTraceId="<traceId>"
 # Fallos de indexación con su error
-{namespace="search-dev"} | json | event="index.failed" | line_format "{{.docId}} {{.err_message}}"
+{k8s_namespace_name="search-dev"} | json | event="index.failed" | line_format "{{.docId}} {{.err_message}}"
 ```
 
 **Tempo** (TraceQL)
